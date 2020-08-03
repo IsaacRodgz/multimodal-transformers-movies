@@ -45,6 +45,21 @@ class ImageEncoder(nn.Module):
         return out  # BxNx2048
 
 
+class ImageEncoder16(nn.Module):
+    def __init__(self, args):
+        super(ImageEncoder16, self).__init__()
+        self.args = args
+        self.model = torchvision.models.vgg16(pretrained=True)
+
+    def forward(self, x):
+        out = self.model.features(x)
+        out = self.model.avgpool(out)
+        out = torch.flatten(out, 1)
+        out = self.model.classifier[0](out)
+        
+        return out
+
+
 class ImageClf(nn.Module):
     def __init__(self, args):
         super(ImageClf, self).__init__()

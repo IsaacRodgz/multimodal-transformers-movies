@@ -10,18 +10,25 @@
 from mmbt.models.bert import BertClf
 from mmbt.models.bow import GloveBowClf
 from mmbt.models.concat_bert import MultimodalConcatBertClf
-from mmbt.models.concat_bow import  MultimodalConcatBowClf
+from mmbt.models.concat_bow import  MultimodalConcatBowClf, MultimodalConcatBow16Clf, MLPGenreClf
 from mmbt.models.image import ImageClf
 from mmbt.models.mmbt import MultimodalBertClf
+from mmbt.models.gmu import GMUClf
+from mmbt.models.mmtr import MMTransformerClf
+from mmbt.models.mmbtp import MultimodalBertTransfClf
 
 
 MODELS = {
     "bert": BertClf,
     "bow": GloveBowClf,
     "concatbow": MultimodalConcatBowClf,
+    "concatbow16": MLPGenreClf,
+    "gmu": GMUClf,
     "concatbert": MultimodalConcatBertClf,
     "img": ImageClf,
     "mmbt": MultimodalBertClf,
+    "mmtr": MMTransformerClf,
+    "mmbtp": MultimodalBertTransfClf,
 }
 
 

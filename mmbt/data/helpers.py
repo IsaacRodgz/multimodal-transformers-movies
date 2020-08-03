@@ -57,7 +57,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -81,7 +81,7 @@ def collate_fn(batch, args):
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
-    if args.model in ["img", "concatbow", "concatbert", "mmbt"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp"]:
         img_tensor = torch.stack([row[2] for row in batch])
 
     if args.task_type == "multilabel":
@@ -103,7 +103,7 @@ def collate_fn(batch, args):
 def get_data_loaders(args):
     tokenizer = (
         BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
-        if args.model in ["bert", "mmbt", "concatbert"]
+        if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp"]
         else str.split
     )
 
@@ -169,45 +169,4 @@ def get_data_loaders(args):
         collate_fn=collate,
     )
 
-    if args.task == "vsnli":
-        test_hard = JsonlDataset(
-            os.path.join(args.data_path, args.task, "test_hard.jsonl"),
-            tokenizer,
-            transforms,
-            vocab,
-            args,
-        )
-
-        test_hard_loader = DataLoader(
-            test_hard,
-            batch_size=args.batch_sz,
-            shuffle=False,
-            num_workers=args.n_workers,
-            collate_fn=collate,
-        )
-
-        test = {"test": test_loader, "test_hard": test_hard_loader}
-
-    else:
-        test_gt = JsonlDataset(
-            os.path.join(args.data_path, args.task, "test_hard_gt.jsonl"),
-            tokenizer,
-            transforms,
-            vocab,
-            args,
-        )
-
-        test_gt_loader = DataLoader(
-            test_gt,
-            batch_size=args.batch_sz,
-            shuffle=False,
-            num_workers=args.n_workers,
-            collate_fn=collate,
-        )
-
-        test = {
-            "test": test_loader,
-            "test_gt": test_gt_loader,
-        }
-
-    return train_loader, val_loader, test
+    return train_loader, val_loader, test_loader

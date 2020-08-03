@@ -78,7 +78,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbert", "mmbt"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp"]:
             if self.data[index]["img"]:
                 image = Image.open(
                     os.path.join(self.data_dir, self.data[index]["img"])

@@ -22,6 +22,10 @@ from mmbt.models import get_model
 from mmbt.utils.logger import create_logger
 from mmbt.utils.utils import *
 
+import os
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
@@ -44,7 +48,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbert", "mmbt"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -55,6 +59,23 @@ def get_args(parser):
     parser.add_argument("--task_type", type=str, default="multilabel", choices=["multilabel", "classification"])
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
+    
+    parser.add_argument('--vonly', action='store_false', help='use the crossmodal fusion into v (default: False)')
+    parser.add_argument('--lonly', action='store_false', help='use the crossmodal fusion into l (default: False)')
+    parser.add_argument("--orig_d_v", type=int, default=2048)
+    parser.add_argument("--orig_d_l", type=int, default=768)
+    parser.add_argument("--v_len", type=int, default=3)
+    parser.add_argument("--l_len", type=int, default=512)
+    parser.add_argument('--attn_dropout', type=float, default=0.1, help='attention dropout')
+    parser.add_argument('--attn_dropout_v', type=float, default=0.0, help='attention dropout (for visual)')
+    parser.add_argument('--relu_dropout', type=float, default=0.1, help='relu dropout')
+    parser.add_argument('--embed_dropout', type=float, default=0.25, help='embedding dropout')
+    parser.add_argument('--res_dropout', type=float, default=0.1, help='residual block dropout')
+    parser.add_argument('--out_dropout', type=float, default=0.0, help='output layer dropout')
+    parser.add_argument('--nlevels', type=int, default=5, help='number of layers in the network (default: 5)')
+    parser.add_argument('--layers', type=int, default=5)
+    parser.add_argument('--num_heads', type=int, default=5, help='number of heads for the transformer network (default: 5)')
+    parser.add_argument('--attn_mask', action='store_false', help='use attention mask for Transformer (default: true)')
 
 
 def get_criterion(args):
@@ -72,7 +93,7 @@ def get_criterion(args):
 
 
 def get_optimizer(model, args):
-    if args.model in ["bert", "concatbert", "mmbt"]:
+    if args.model in ["bert", "concatbert", "mmbt", "mmbtp"]:
         total_steps = (
             args.train_data_len
             / args.batch_sz
@@ -148,18 +169,18 @@ def model_forward(i_epoch, model, args, criterion, batch):
     elif args.model == "img":
         img = img.cuda()
         out = model(img)
-    elif args.model == "concatbow":
+    elif args.model in ["concatbow", "concatbow16", "gmu"]:
         txt, img = txt.cuda(), img.cuda()
         out = model(txt, img)
     elif args.model == "bert":
         txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
         out = model(txt, mask, segment)
-    elif args.model == "concatbert":
+    elif args.model in ["concatbert", "mmtr"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
         out = model(txt, mask, segment, img)
     else:
-        assert args.model == "mmbt"
+        assert args.model in ["mmbt", "mmbtp"]
         for param in model.enc.img_encoder.parameters():
             param.requires_grad = not freeze_img
         for param in model.enc.encoder.parameters():
@@ -180,7 +201,7 @@ def train(args):
     args.savedir = os.path.join(args.savedir, args.name)
     os.makedirs(args.savedir, exist_ok=True)
 
-    train_loader, val_loader, test_loaders = get_data_loaders(args)
+    train_loader, val_loader, test_loader = get_data_loaders(args)
 
     model = get_model(args)
     criterion = get_criterion(args)
@@ -257,11 +278,11 @@ def train(args):
 
     load_checkpoint(model, os.path.join(args.savedir, "model_best.pt"))
     model.eval()
-    for test_name, test_loader in test_loaders.items():
-        test_metrics = model_eval(
-            np.inf, test_loader, model, args, criterion, store_preds=True
-        )
-        log_metrics(f"Test - {test_name}", test_metrics, args, logger)
+
+    test_metrics = model_eval(
+        np.inf, test_loader, model, args, criterion, store_preds=True
+    )
+    log_metrics(f"Test - ", test_metrics, args, logger)
 
 
 def cli_main():
