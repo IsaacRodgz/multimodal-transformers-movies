@@ -102,7 +102,8 @@ class MMTransformerClf(nn.Module):
         text, and vision should have dimension [batch_size, seq_len, n_features]
         """
         x_l = self.enc(txt, mask, segment)
-        x_v = self.img_encoder(img)
+        #x_v = self.img_encoder(img)
+        x_v = img
         
         x_l = F.dropout(x_l.transpose(1, 2), p=self.embed_dropout, training=self.training)
         x_v = x_v.transpose(1, 2)

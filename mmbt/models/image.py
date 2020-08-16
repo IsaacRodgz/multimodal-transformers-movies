@@ -11,6 +11,12 @@ import torch
 import torch.nn as nn
 import torchvision
 
+from PIL import Image
+import detectron2
+from detectron2 import model_zoo
+from detectron2.engine import DefaultPredictor
+from detectron2.config import get_cfg
+
 
 class ImageEncoder(nn.Module):
     def __init__(self, args):
@@ -58,6 +64,38 @@ class ImageEncoder16(nn.Module):
         out = self.model.classifier[0](out)
         
         return out
+
+
+class ImageEncoderSeq(nn.Module):
+    def __init__(self, args):
+        super(ImageEncoderSeq, self).__init__()
+        self.args = args
+        cfg = get_cfg()
+        cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7
+        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml")
+        self.model = DefaultPredictor(cfg)
+
+    def forward(self, x):
+        
+        outputs = predictor(x)
+        
+        all_features = []
+        
+        for pb in outputs["instances"].pred_boxes:
+            
+            bb = list(pb.detach().cpu().numpy())
+
+            xi = int(bb[1])
+            xf = int(bb[3])
+            yi = int(bb[0])
+            yf = int(bb[2])
+
+            cropped_image = Image.fromarray(im2[xi:xf, yi:yf, ...].astype('uint8'), 'RGB')
+            cropped_image = transform(cropped_image)
+            all_features.append(cropped_image)
+            
+        all_features = torch.stack(all_features)
 
 
 class ImageClf(nn.Module):
