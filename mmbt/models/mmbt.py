@@ -10,6 +10,8 @@
 import torch
 import torch.nn as nn
 from pytorch_pretrained_bert.modeling import BertModel
+from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
+from collections import OrderedDict
 
 from mmbt.models.image import ImageEncoder
 
@@ -56,7 +58,15 @@ class MultimodalBertEncoder(nn.Module):
     def __init__(self, args):
         super(MultimodalBertEncoder, self).__init__()
         self.args = args
-        bert = BertModel.from_pretrained(args.bert_model)
+        if args.trained_model_dir:
+            #previous_state_dict = OrderedDict()
+            #distant_state_dict = torch.load(args.previous_state_dict_dir)
+            #previous_state_dict.update(distant_state_dict)
+            print("Loading BERT from AdaptaBERT pre-training")
+            #print(previous_state_dict)
+            bert = BertModel.from_pretrained(args.trained_model_dir)
+        else:
+            bert = BertModel.from_pretrained(args.bert_model)
         self.txt_embeddings = bert.embeddings
 
         if args.task == "vsnli":

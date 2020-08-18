@@ -1,4 +1,4 @@
-3#!/usr/bin/env python3
+#!/usr/bin/env python3
 #
 # Copyright (c) Facebook, Inc. and its affiliates.
 # All rights reserved.
@@ -79,6 +79,7 @@ class JsonlDataset(Dataset):
 
         image = None
         if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp"]:
+            '''
             if self.data[index]["img"]:
                 image = torch.load(os.path.join(self.data_dir, 'dataset_img/'+self.data[index]['img'].split('/')[-1].replace('.jpeg', '.pt')))
                 seq_len = image.size()[0]
@@ -91,6 +92,14 @@ class JsonlDataset(Dataset):
             else:
                 image = 128*torch.ones([self.args.num_image_embeds,4096])
             #image = self.transforms(image)
+            '''
+            if self.data[index]["img"]:
+                image = Image.open(
+                    os.path.join(self.data_dir, self.data[index]["img"])
+                ).convert("RGB")
+            else:
+                image = Image.fromarray(128 * np.ones((256, 256, 3), dtype=np.uint8))
+            image = self.transforms(image)
 
         if self.args.model == "mmbt":
             # The first SEP is part of Image Token.

@@ -44,7 +44,7 @@ class MMTransformerClf(nn.Module):
         self.attn_mask = args.attn_mask
         
         self.enc = BertEncoder(args)
-        self.img_encoder = ImageEncoder(args)
+        #self.img_encoder = ImageEncoder(args)
 
         combined_dim = self.d_l + self.d_v
 

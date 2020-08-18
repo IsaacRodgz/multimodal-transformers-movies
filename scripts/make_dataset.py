@@ -5,6 +5,7 @@ from torchvision import transforms
 from PIL import Image
 import numpy as np
 from collections import OrderedDict, Counter
+from tempfile import TemporaryFile
 import math
 from numpy import asarray
 from numpy import save
@@ -16,9 +17,9 @@ from detectron2 import model_zoo
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 
-import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+#import os
+#os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+#os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 
 def resize_and_crop_image(input_file, output_box=[224, 224], fit=True):
@@ -70,7 +71,7 @@ def get_image_feature(feature_extractor, image):
 
 
 def extract_visual(img_name):
-    img = resize_and_crop_image(f"/001/usuarios/isaac.bribiesca/mmimdb/dataset/{img_name}.jpeg", (256,256))
+    img = resize_and_crop_image(f"/home/est_posgrado_isaac.bribiesca/mmimdb/dataset/{img_name}.jpeg", (256,256))
     img = preprocess(img)
     img = img.unsqueeze(0)
     feature = get_image_feature(feature_extractor, img)
@@ -86,17 +87,17 @@ preprocess = transforms.Compose([
 cfg = get_cfg()
 cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"))
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.2
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml")
+cfg.MODEL.WEIGHTS = "/home/est_posgrado_isaac.bribiesca/mmbt_experiments/model_final_f6e8b1.pkl"
 predictor = DefaultPredictor(cfg)
 feature_extractor = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
 
 
-data = [json.loads(l) for l in open('/001/usuarios/isaac.bribiesca/mmimdb/test.jsonl')]
+data = [json.loads(l) for l in open('/home/est_posgrado_isaac.bribiesca/mmimdb/train.jsonl')]
 
 status = tqdm(data, total=int(len(data)))
 
 for i, row in enumerate(status):
-    path = '/001/usuarios/isaac.bribiesca'+row['img'][2:]
+    path = '/home/est_posgrado_isaac.bribiesca'+row['img'][2:]
     img = Image.open(path)
     img = np.array(img).astype(np.float32)
     
@@ -109,7 +110,7 @@ for i, row in enumerate(status):
     
     outputs = predictor(img)
     
-    all_features = []
+    all_features = [img]
     for pb in outputs["instances"].pred_boxes:
 
         bb = list(pb.cpu().numpy())
@@ -119,19 +120,22 @@ for i, row in enumerate(status):
         yi = int(bb[0])
         yf = int(bb[2])
         
-        img_region = Image.fromarray(img[xi:xf, yi:yf, ...].astype('uint8'), 'RGB')
-        img_region = resize_and_crop_image(img_region, (256,256))
-        img_region = preprocess(img_region)
-        img_region = img_region.unsqueeze(0)
-        feature = get_image_feature(feature_extractor, img_region)
-        all_features.append(feature.squeeze(0))
+        #img_region = Image.fromarray(img[xi:xf, yi:yf, ...].astype('uint8'), 'RGB')
+        #img_region = resize_and_crop_image(img_region, (256,256))
+        #img_region = preprocess(img_region)
+        #img_region = img_region.unsqueeze(0)
+        #feature = get_image_feature(feature_extractor, img_region)
+        #all_features.append(feature.squeeze(0))
+        img_region = img[xi:xf, yi:yf, ...]
+        all_features.append(img_region)
         
     img_name = row['img'].split('/')[-1][:-5]
-    
+    '''
     if len(all_features) > 0:
         img_feature = extract_visual(img_name).squeeze(0)
         all_features = torch.stack([img_feature]+all_features)
     else:
         all_features = extract_visual(img_name)
-    
-    torch.save(all_features, f'../mmimdb/dataset_img/{img_name}.pt')
+    '''
+    #torch.save(all_features, f'../mmimdb/dataset_img/{img_name}.pt')
+    np.savez(f'../../mmimdb/dataset_img_raw/{img_name}', *all_features)

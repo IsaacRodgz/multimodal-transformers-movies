@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from pytorch_pretrained_bert import BertAdam
+from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 
 from mmbt.data.helpers import get_data_loaders
 from mmbt.models import get_model
@@ -24,7 +25,7 @@ from mmbt.utils.utils import *
 
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 
 def get_args(parser):
@@ -59,6 +60,16 @@ def get_args(parser):
     parser.add_argument("--task_type", type=str, default="multilabel", choices=["multilabel", "classification"])
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
+    
+    parser.add_argument("--trained_model_dir",
+                        default="",
+                        type=str,
+                        help="Where is the fine-tuned (with the cloze-style LM objective) BERT model?")
+    parser.add_argument("--output_dir",
+                        default=None,
+                        type=str,
+                        required=True,
+                        help="The output directory where the model predictions and checkpoints will be written.")
     
     parser.add_argument('--vonly', action='store_false', help='use the crossmodal fusion into v (default: False)')
     parser.add_argument('--lonly', action='store_false', help='use the crossmodal fusion into l (default: False)')
@@ -202,6 +213,9 @@ def train(args):
     os.makedirs(args.savedir, exist_ok=True)
 
     train_loader, val_loader, test_loader = get_data_loaders(args)
+    
+    if args.trained_model_dir: # load in fine-tuned (with cloze-style LM objective) model
+        args.previous_state_dict_dir = os.path.join(args.trained_model_dir, WEIGHTS_NAME)
 
     model = get_model(args)
     criterion = get_criterion(args)
