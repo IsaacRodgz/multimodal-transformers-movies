@@ -92,7 +92,7 @@ predictor = DefaultPredictor(cfg)
 feature_extractor = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=True)
 
 
-data = [json.loads(l) for l in open('/home/est_posgrado_isaac.bribiesca/mmimdb/train.jsonl')]
+data = [json.loads(l) for l in open('/home/est_posgrado_isaac.bribiesca/mmimdb/dev.jsonl')]
 
 status = tqdm(data, total=int(len(data)))
 

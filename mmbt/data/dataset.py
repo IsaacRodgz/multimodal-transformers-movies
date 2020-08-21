@@ -93,6 +93,8 @@ class JsonlDataset(Dataset):
                 image = 128*torch.ones([self.args.num_image_embeds,4096])
             #image = self.transforms(image)
             '''
+            
+            '''
             if self.data[index]["img"]:
                 image = Image.open(
                     os.path.join(self.data_dir, self.data[index]["img"])
@@ -100,6 +102,28 @@ class JsonlDataset(Dataset):
             else:
                 image = Image.fromarray(128 * np.ones((256, 256, 3), dtype=np.uint8))
             image = self.transforms(image)
+            '''
+            
+            if self.data[index]["img"]:
+                full_path = os.path.join(self.data_dir, 'dataset_img_raw/'+self.data[index]['img'].split('/')[-1].replace('.jpeg', '.npz'))
+                m = np.load(full_path)
+                
+                regions_list = []
+                for arr_name in m.files:
+                    region = Image.fromarray(m[arr_name].astype('uint8'), 'RGB')
+                    region = self.transforms(region)
+                    regions_list.append(region)
+                    
+                seq_len = len(regions_list)
+                if seq_len > self.args.num_images:
+                    regions_list = regions_list[:self.args.num_images]
+                elif seq_len < self.args.num_images:
+                    num_missing = self.args.num_images - seq_len
+                    
+                    for i in range(num_missing):
+                        regions_list.append(128*torch.ones([3,224,224]))
+                    
+                image = torch.stack(regions_list, dim=0)
 
         if self.args.model == "mmbt":
             # The first SEP is part of Image Token.

@@ -25,7 +25,7 @@ from mmbt.utils.utils import *
 
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
 def get_args(parser):
@@ -53,6 +53,7 @@ def get_args(parser):
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
+    parser.add_argument("--num_images", type=int, default=8)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--savedir", type=str, default="/path/to/save_dir/")
     parser.add_argument("--seed", type=int, default=123)
@@ -65,11 +66,13 @@ def get_args(parser):
                         default="",
                         type=str,
                         help="Where is the fine-tuned (with the cloze-style LM objective) BERT model?")
+    '''
     parser.add_argument("--output_dir",
                         default=None,
                         type=str,
                         required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")
+    '''
     
     parser.add_argument('--vonly', action='store_false', help='use the crossmodal fusion into v (default: False)')
     parser.add_argument('--lonly', action='store_false', help='use the crossmodal fusion into l (default: False)')
