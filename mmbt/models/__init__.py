@@ -16,6 +16,7 @@ from mmbt.models.mmbt import MultimodalBertClf
 from mmbt.models.gmu import GMUClf
 from mmbt.models.mmtr import MMTransformerClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
+from mmbt.models.mmdbt import MultimodalDistilBertClf
 
 
 MODELS = {
@@ -29,6 +30,7 @@ MODELS = {
     "mmbt": MultimodalBertClf,
     "mmtr": MMTransformerClf,
     "mmbtp": MultimodalBertTransfClf,
+    "mmdbt": MultimodalDistilBertClf,
 }
 
 

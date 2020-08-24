@@ -15,6 +15,7 @@ from collections import Counter
 import torch
 import torchvision.transforms as transforms
 from pytorch_pretrained_bert import BertTokenizer
+from transformers import DistilBertTokenizer
 from torch.utils.data import DataLoader
 
 from mmbt.data.dataset import JsonlDataset
@@ -64,6 +65,15 @@ def get_vocab(args):
         vocab.stoi = bert_tokenizer.vocab
         vocab.itos = bert_tokenizer.ids_to_tokens
         vocab.vocab_sz = len(vocab.itos)
+        
+    elif args.model in ["mmdbt"]:
+        distilbert_tokenizer = DistilBertTokenizer.from_pretrained(
+            args.bert_model, do_lower_case=True
+        )
+        
+        vocab.stoi = distilbert_tokenizer.vocab
+        vocab.itos = distilbert_tokenizer.ids_to_tokens
+        vocab.vocab_sz = len(vocab.itos)
 
     else:
         word_list = get_glove_words(args.glove_path)
@@ -82,7 +92,7 @@ def collate_fn(batch, args):
 
     img_tensor = None
 
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt"]:
         img_tensor = torch.stack([row[2] for row in batch])
 
     if args.task_type == "multilabel":
@@ -102,11 +112,25 @@ def collate_fn(batch, args):
 
 
 def get_data_loaders(args):
+    '''
     tokenizer = (
         BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp"]
         else str.split
     )
+    '''
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp"]:
+        tokenizer = (
+            BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
+        )
+    
+    elif args.model == "mmdbt":
+        tokenizer = (
+            DistilBertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
+        )
+    
+    else:
+        tokenizer = (str.split)
 
     transforms = get_transforms(args)
 

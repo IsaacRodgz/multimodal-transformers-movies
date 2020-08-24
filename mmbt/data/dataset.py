@@ -78,8 +78,9 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt"]:
             '''
+            # Extracted vgg16 features
             if self.data[index]["img"]:
                 image = torch.load(os.path.join(self.data_dir, 'dataset_img/'+self.data[index]['img'].split('/')[-1].replace('.jpeg', '.pt')))
                 seq_len = image.size()[0]
@@ -93,8 +94,8 @@ class JsonlDataset(Dataset):
                 image = 128*torch.ones([self.args.num_image_embeds,4096])
             #image = self.transforms(image)
             '''
-            
             '''
+            # Original
             if self.data[index]["img"]:
                 image = Image.open(
                     os.path.join(self.data_dir, self.data[index]["img"])
@@ -104,6 +105,7 @@ class JsonlDataset(Dataset):
             image = self.transforms(image)
             '''
             
+            # Extracted image regions from Faster R-CNN
             if self.data[index]["img"]:
                 full_path = os.path.join(self.data_dir, 'dataset_img_raw/'+self.data[index]['img'].split('/')[-1].replace('.jpeg', '.npz'))
                 m = np.load(full_path)
@@ -124,12 +126,14 @@ class JsonlDataset(Dataset):
                         regions_list.append(128*torch.ones([3,224,224]))
                     
                 image = torch.stack(regions_list, dim=0)
-
+        
         if self.args.model == "mmbt":
             # The first SEP is part of Image Token.
             segment = segment[1:]
             sentence = sentence[1:]
             # The first segment (0) is of images.
             segment += 1
+            
+        #print("sizes: ", sentence.size(), image.size())
 
         return sentence, segment, image, label

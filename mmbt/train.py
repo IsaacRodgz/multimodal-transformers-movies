@@ -30,7 +30,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
-    parser.add_argument("--bert_model", type=str, default="bert-base-uncased", choices=["bert-base-uncased", "bert-large-uncased"])
+    parser.add_argument("--bert_model", type=str, default="bert-base-uncased", choices=["bert-base-uncased", "bert-large-uncased", "distilbert-base-uncased"])
     parser.add_argument("--data_path", type=str, default="/path/to/data_dir/")
     parser.add_argument("--drop_img_percent", type=float, default=0.0)
     parser.add_argument("--dropout", type=float, default=0.1)
@@ -49,7 +49,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -194,7 +194,7 @@ def model_forward(i_epoch, model, args, criterion, batch):
         mask, segment = mask.cuda(), segment.cuda()
         out = model(txt, mask, segment, img)
     else:
-        assert args.model in ["mmbt", "mmbtp"]
+        assert args.model in ["mmbt", "mmbtp", "mmdbt"]
         for param in model.enc.img_encoder.parameters():
             param.requires_grad = not freeze_img
         for param in model.enc.encoder.parameters():

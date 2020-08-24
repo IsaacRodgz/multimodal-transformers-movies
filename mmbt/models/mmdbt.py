@@ -10,6 +10,7 @@
 import torch
 import torch.nn as nn
 from pytorch_pretrained_bert.modeling import BertModel
+from transformers import DistilBertModel
 from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 from collections import OrderedDict
 
@@ -22,7 +23,7 @@ class ImageBertEmbeddings(nn.Module):
         self.args = args
         self.img_embeddings = nn.Linear(args.img_hidden_sz, args.hidden_sz)
         self.position_embeddings = embeddings.position_embeddings
-        self.token_type_embeddings = embeddings.token_type_embeddings
+        #self.token_type_embeddings = embeddings.token_type_embeddings
         self.word_embeddings = embeddings.word_embeddings
         self.LayerNorm = embeddings.LayerNorm
         self.dropout = nn.Dropout(p=args.dropout)
@@ -47,38 +48,43 @@ class ImageBertEmbeddings(nn.Module):
         position_ids = torch.arange(seq_length, dtype=torch.long).cuda()
         position_ids = position_ids.unsqueeze(0).expand(bsz, seq_length)
         position_embeddings = self.position_embeddings(position_ids)
-        token_type_embeddings = self.token_type_embeddings(token_type_ids)
-        embeddings = token_embeddings + position_embeddings + token_type_embeddings
+        #token_type_embeddings = self.token_type_embeddings(token_type_ids)
+        embeddings = token_embeddings + position_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
 
 
-class MultimodalBertEncoder(nn.Module):
+class BertPooler(nn.Module):
     def __init__(self, args):
-        super(MultimodalBertEncoder, self).__init__()
+        super(BertPooler, self).__init__()
+        self.dense = nn.Linear(args.hidden_sz, args.hidden_sz)
+        self.activation = nn.Tanh()
+
+    def forward(self, hidden_states):
+        # We "pool" the model by simply taking the hidden state corresponding
+        # to the first token.
+        first_token_tensor = hidden_states[:, 0]
+        pooled_output = self.dense(first_token_tensor)
+        pooled_output = self.activation(pooled_output)
+        return pooled_output
+
+
+class MultimodalDistilBertEncoder(nn.Module):
+    def __init__(self, args):
+        super(MultimodalDistilBertEncoder, self).__init__()
         self.args = args
         if args.trained_model_dir:
-            print("Loading BERT from AdaptaBERT pre-training")
-            bert = BertModel.from_pretrained(args.trained_model_dir)
+            distilbert = DistilBertModel.from_pretrained(args.trained_model_dir)
         else:
-            bert = BertModel.from_pretrained(args.bert_model)
-        self.txt_embeddings = bert.embeddings
-
-        if args.task == "vsnli":
-            ternary_embeds = nn.Embedding(3, args.hidden_sz)
-            ternary_embeds.weight.data[:2].copy_(
-                bert.embeddings.token_type_embeddings.weight
-            )
-            ternary_embeds.weight.data[2].copy_(
-                bert.embeddings.token_type_embeddings.weight.data.mean(dim=0)
-            )
-            self.txt_embeddings.token_type_embeddings = ternary_embeds
+            distilbert = DistilBertModel.from_pretrained(args.bert_model)
+        self.num_hidden_layers = distilbert.config.num_hidden_layers
+        self.txt_embeddings = distilbert.embeddings
 
         self.img_embeddings = ImageBertEmbeddings(args, self.txt_embeddings)
         self.img_encoder = ImageEncoder(args)
-        self.encoder = bert.encoder
-        self.pooler = bert.pooler
+        self.encoder = distilbert.transformer
+        self.pooler = BertPooler(args)
         self.clf = nn.Linear(args.hidden_sz, args.n_classes)
 
     def forward(self, input_txt, attention_mask, segment, input_img):
@@ -90,12 +96,7 @@ class MultimodalBertEncoder(nn.Module):
             ],
             dim=1,
         )
-        extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
-        extended_attention_mask = extended_attention_mask.to(
-            dtype=next(self.parameters()).dtype
-        )
-        extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
-
+ 
         img_tok = (
             torch.LongTensor(input_txt.size(0), self.args.num_image_embeds + 2)
             .fill_(0)
@@ -103,21 +104,23 @@ class MultimodalBertEncoder(nn.Module):
         )
         img = self.img_encoder(input_img)  # BxNx3x224x224 -> BxNx2048
         img_embed_out = self.img_embeddings(img, img_tok)
-        txt_embed_out = self.txt_embeddings(input_txt, segment)
+        txt_embed_out = self.txt_embeddings(input_txt)
         encoder_input = torch.cat([img_embed_out, txt_embed_out], 1)  # Bx(TEXT+IMG)xHID
+        
+        head_mask = [None] * self.num_hidden_layers
 
         encoded_layers = self.encoder(
-            encoder_input, extended_attention_mask, output_all_encoded_layers=False
+            encoder_input, attention_mask, head_mask=head_mask
         )
 
         return self.pooler(encoded_layers[-1])
 
 
-class MultimodalBertClf(nn.Module):
+class MultimodalDistilBertClf(nn.Module):
     def __init__(self, args):
-        super(MultimodalBertClf, self).__init__()
+        super(MultimodalDistilBertClf, self).__init__()
         self.args = args
-        self.enc = MultimodalBertEncoder(args)
+        self.enc = MultimodalDistilBertEncoder(args)
         self.clf = nn.Linear(args.hidden_sz, args.n_classes)
 
     def forward(self, txt, mask, segment, img):
