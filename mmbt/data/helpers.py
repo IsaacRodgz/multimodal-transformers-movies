@@ -58,7 +58,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -92,7 +92,7 @@ def collate_fn(batch, args):
 
     img_tensor = None
 
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert"]:
         img_tensor = torch.stack([row[2] for row in batch])
 
     if args.task_type == "multilabel":
@@ -119,7 +119,7 @@ def get_data_loaders(args):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )

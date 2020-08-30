@@ -17,6 +17,7 @@ from mmbt.models.gmu import GMUClf
 from mmbt.models.mmtr import MMTransformerClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
+from mmbt.models.vilbert import VILBertForVLTasks
 
 
 MODELS = {
@@ -31,8 +32,12 @@ MODELS = {
     "mmtr": MMTransformerClf,
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
+    "vilbert": VILBertForVLTasks,
 }
 
 
-def get_model(args):
+def get_model(args, config=None):
+    if config:
+        return VILBertForVLTasks.from_pretrained(args.from_pretrained,
+                                                 config=config)
     return MODELS[args.model](args)

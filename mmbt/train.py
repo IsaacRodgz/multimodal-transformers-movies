@@ -22,10 +22,12 @@ from mmbt.data.helpers import get_data_loaders
 from mmbt.models import get_model
 from mmbt.utils.logger import create_logger
 from mmbt.utils.utils import *
+from mmbt.models.vilbert import BertConfig
 
+from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 
 def get_args(parser):
@@ -49,7 +51,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -62,18 +64,13 @@ def get_args(parser):
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
     
+    '''AdaptaBERT parameter'''
     parser.add_argument("--trained_model_dir",
                         default="",
                         type=str,
                         help="Where is the fine-tuned (with the cloze-style LM objective) BERT model?")
-    '''
-    parser.add_argument("--output_dir",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The output directory where the model predictions and checkpoints will be written.")
-    '''
     
+    '''MMTransformer parameters'''
     parser.add_argument('--vonly', action='store_false', help='use the crossmodal fusion into v (default: False)')
     parser.add_argument('--lonly', action='store_false', help='use the crossmodal fusion into l (default: False)')
     parser.add_argument("--orig_d_v", type=int, default=2048)
@@ -90,7 +87,11 @@ def get_args(parser):
     parser.add_argument('--layers', type=int, default=5)
     parser.add_argument('--num_heads', type=int, default=5, help='number of heads for the transformer network (default: 5)')
     parser.add_argument('--attn_mask', action='store_false', help='use attention mask for Transformer (default: true)')
-
+        
+    '''ViLBERT parameters'''
+    parser.add_argument("--from_pretrained", type=str, default=expanduser("~")+"/vilbert-multi-task/save/multi_task_model.bin")
+    parser.add_argument("--config_file", type=str, default=expanduser("~")+"/vilbert-multi-task/config/bert_base_6layer_6conect.json")
+    parser.add_argument("--vision_scratch", action="store_true", help="whether pre-trained the image or not.")
 
 def get_criterion(args):
     if args.task_type == "multilabel":
@@ -123,6 +124,43 @@ def get_optimizer(model, args):
         optimizer = BertAdam(
             optimizer_grouped_parameters,
             lr=args.lr,
+            warmup=args.warmup,
+            t_total=total_steps,
+        )
+    elif args.model == "vilbert":
+        total_steps = (
+            args.train_data_len
+            / args.batch_sz
+            / args.gradient_accumulation_steps
+            * args.max_epochs
+        )
+        
+        no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+        base_lr = args.lr
+        optimizer_grouped_parameters = []
+        for key, value in dict(model.named_parameters()).items():
+            if value.requires_grad:
+                if "vil_" in key:
+                    lr = 1e-4
+                else:
+                    if args.vision_scratch:
+                        if key[12:] in bert_weight_name:
+                            lr = base_lr
+                        else:
+                            lr = 1e-4
+                    else:
+                        lr = base_lr
+                if any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.0}
+                    ]
+                if not any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.01}
+                    ]
+        optimizer = BertAdam(
+            optimizer_grouped_parameters,
+            lr=base_lr,
             warmup=args.warmup,
             t_total=total_steps,
         )
@@ -220,7 +258,12 @@ def train(args):
     if args.trained_model_dir: # load in fine-tuned (with cloze-style LM objective) model
         args.previous_state_dict_dir = os.path.join(args.trained_model_dir, WEIGHTS_NAME)
 
-    model = get_model(args)
+    if args.model == "vilbert":
+        config = BertConfig.from_json_file(args.config_file)
+        model = get_model(args, config)
+    else:
+        model = get_model(config)
+
     criterion = get_criterion(args)
     optimizer = get_optimizer(model, args)
     scheduler = get_scheduler(optimizer, args)

@@ -94,7 +94,7 @@ class JsonlDataset(Dataset):
                 image = 128*torch.ones([self.args.num_image_embeds,4096])
             #image = self.transforms(image)
             '''
-            '''
+            #'''
             # Original
             if self.data[index]["img"]:
                 image = Image.open(
@@ -103,8 +103,8 @@ class JsonlDataset(Dataset):
             else:
                 image = Image.fromarray(128 * np.ones((256, 256, 3), dtype=np.uint8))
             image = self.transforms(image)
+            #'''
             '''
-            
             # Extracted image regions from Faster R-CNN
             if self.data[index]["img"]:
                 full_path = os.path.join(self.data_dir, 'dataset_img_raw/'+self.data[index]['img'].split('/')[-1].replace('.jpeg', '.npz'))
@@ -126,6 +126,7 @@ class JsonlDataset(Dataset):
                         regions_list.append(128*torch.ones([3,224,224]))
                     
                 image = torch.stack(regions_list, dim=0)
+            '''
         
         if self.args.model == "mmbt":
             # The first SEP is part of Image Token.
