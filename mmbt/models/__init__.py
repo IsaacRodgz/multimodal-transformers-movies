@@ -38,6 +38,8 @@ MODELS = {
 
 def get_model(args, config=None):
     if config:
+        #config.num_image_embeds = args.num_image_embeds
+        config.args = args
         return VILBertForVLTasks.from_pretrained(args.from_pretrained,
                                                  config=config)
     return MODELS[args.model](args)

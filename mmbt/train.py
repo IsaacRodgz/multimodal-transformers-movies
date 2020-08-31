@@ -231,6 +231,9 @@ def model_forward(i_epoch, model, args, criterion, batch):
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
         out = model(txt, mask, segment, img)
+    elif args.model == "vilbert":
+        txt, img = txt.cuda(), img.cuda()
+        out = model(txt, img)
     else:
         assert args.model in ["mmbt", "mmbtp", "mmdbt"]
         for param in model.enc.img_encoder.parameters():
