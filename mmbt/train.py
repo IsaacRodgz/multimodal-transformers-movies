@@ -51,7 +51,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -108,7 +108,7 @@ def get_criterion(args):
 
 
 def get_optimizer(model, args):
-    if args.model in ["bert", "concatbert", "mmbt", "mmbtp"]:
+    if args.model in ["bert", "concatbert", "mmbt", "mmbtp", "mmbt3"]:
         total_steps = (
             args.train_data_len
             / args.batch_sz
@@ -210,7 +210,10 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False):
 
 
 def model_forward(i_epoch, model, args, criterion, batch):
-    txt, segment, mask, img, tgt = batch
+    if args.model == "mmbt3":
+        txt, segment, mask, mm_mask, img, tgt = batch
+    else:
+        txt, segment, mask, img, tgt = batch
 
     freeze_img = i_epoch < args.freeze_img
     freeze_txt = i_epoch < args.freeze_txt
@@ -230,12 +233,12 @@ def model_forward(i_epoch, model, args, criterion, batch):
     elif args.model in ["concatbert", "mmtr"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
-        out = model(txt, mask, segment, img)
+        out = model(txt, mask, segment, img)        
     elif args.model == "vilbert":
         txt, img = txt.cuda(), img.cuda()
         out = model(txt, img)
     else:
-        assert args.model in ["mmbt", "mmbtp", "mmdbt"]
+        assert args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]
         for param in model.enc.img_encoder.parameters():
             param.requires_grad = not freeze_img
         for param in model.enc.encoder.parameters():
@@ -243,7 +246,12 @@ def model_forward(i_epoch, model, args, criterion, batch):
 
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
-        out = model(txt, mask, segment, img)
+        
+        if args.model == "mmbt3":
+            mm_mask = mm_mask.cuda()
+            out = model(txt, mask, mm_mask, img)
+        else:
+            out = model(txt, mask, segment, img)
 
     tgt = tgt.cuda()
     loss = criterion(out, tgt)
@@ -265,7 +273,7 @@ def train(args):
         config = BertConfig.from_json_file(args.config_file)
         model = get_model(args, config)
     else:
-        model = get_model(config)
+        model = get_model(args)
 
     criterion = get_criterion(args)
     optimizer = get_optimizer(model, args)

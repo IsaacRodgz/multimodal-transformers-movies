@@ -58,7 +58,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -85,14 +85,18 @@ def get_vocab(args):
 def collate_fn(batch, args):
     lens = [len(row[0]) for row in batch]
     bsz, max_seq_len = len(batch), max(lens)
+    mm_max_seq_len = args.max_seq_len - (args.num_image_embeds+2) - (max_seq_len+1)
+    mm_seq_len = min(mm_max_seq_len, max_seq_len+args.num_image_embeds)
+    mm_seq_len = max(0, mm_seq_len)
 
-    mask_tensor = torch.zeros(bsz, max_seq_len).long()
+    mask_tensor = torch.zeros(bsz, max_seq_len+1).long()
+    mm_mask_tensor = torch.zeros(bsz, mm_seq_len).long()
     text_tensor = torch.zeros(bsz, max_seq_len).long()
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
 
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3"]:
         img_tensor = torch.stack([row[2] for row in batch])
 
     if args.task_type == "multilabel":
@@ -106,9 +110,16 @@ def collate_fn(batch, args):
         tokens, segment = input_row[:2]
         text_tensor[i_batch, :length] = tokens
         segment_tensor[i_batch, :length] = segment
-        mask_tensor[i_batch, :length] = 1
+        if args.model == "mmbt3":
+            mask_tensor[i_batch, :length+1] = 1
+            mm_mask_tensor[i_batch, :length+args.num_image_embeds] = 1
+        else:
+            mask_tensor[i_batch, :length] = 1
 
-    return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor
+    if args.model == "mmbt3":
+        return text_tensor, segment_tensor, mask_tensor, mm_mask_tensor, img_tensor, tgt_tensor
+    else:
+        return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor
 
 
 def get_data_loaders(args):
@@ -119,7 +130,7 @@ def get_data_loaders(args):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )

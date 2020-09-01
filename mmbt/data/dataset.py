@@ -34,7 +34,7 @@ class JsonlDataset(Dataset):
                     row["img"] = None
 
         self.max_seq_len = args.max_seq_len
-        if args.model == "mmbt":
+        if args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]:
             self.max_seq_len -= args.num_image_embeds
 
         self.transforms = transforms
@@ -51,12 +51,13 @@ class JsonlDataset(Dataset):
             segment = torch.cat(
                 [torch.zeros(2 + len(sent1)), torch.ones(len(sent2) + 1)]
             )
+        elif self.args.model == "mmbt3":
+            sentence = self.tokenizer(self.data[index]["text"])[:(self.max_seq_len - 3)] # -2 for [CLS] and [SEP] tokens
+            segment = torch.zeros(len(sentence))
         else:
             sentence = (
                 self.text_start_token
-                + self.tokenizer(self.data[index]["text"])[
-                    : (self.args.max_seq_len - 1)
-                ]
+                + self.tokenizer(self.data[index]["text"])[:(self.args.max_seq_len - 1)]
             )
             segment = torch.zeros(len(sentence))
 
@@ -78,7 +79,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -134,7 +135,5 @@ class JsonlDataset(Dataset):
             sentence = sentence[1:]
             # The first segment (0) is of images.
             segment += 1
-            
-        #print("sizes: ", sentence.size(), image.size())
 
         return sentence, segment, image, label

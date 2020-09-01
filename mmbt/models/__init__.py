@@ -13,6 +13,7 @@ from mmbt.models.concat_bert import MultimodalConcatBertClf
 from mmbt.models.concat_bow import  MultimodalConcatBowClf, MultimodalConcatBow16Clf, MLPGenreClf
 from mmbt.models.image import ImageClf
 from mmbt.models.mmbt import MultimodalBertClf
+from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
 from mmbt.models.mmtr import MMTransformerClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
@@ -29,6 +30,7 @@ MODELS = {
     "concatbert": MultimodalConcatBertClf,
     "img": ImageClf,
     "mmbt": MultimodalBertClf,
+    "mmbt3": MultimodalBertThreeClf,
     "mmtr": MMTransformerClf,
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
@@ -37,9 +39,10 @@ MODELS = {
 
 
 def get_model(args, config=None):
+    # Initialize ViLBERT model
     if config:
-        #config.num_image_embeds = args.num_image_embeds
         config.args = args
         return VILBertForVLTasks.from_pretrained(args.from_pretrained,
                                                  config=config)
+    # Initialize all other models
     return MODELS[args.model](args)
