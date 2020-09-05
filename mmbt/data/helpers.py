@@ -89,7 +89,10 @@ def collate_fn(batch, args):
     mm_seq_len = min(mm_max_seq_len, max_seq_len+args.num_image_embeds)
     mm_seq_len = max(0, mm_seq_len)
 
-    mask_tensor = torch.zeros(bsz, max_seq_len+1).long()
+    if args.model == "mmbt3":
+        mask_tensor = torch.zeros(bsz, max_seq_len+1).long()
+    else:
+        mask_tensor = torch.zeros(bsz, max_seq_len).long()
     mm_mask_tensor = torch.zeros(bsz, mm_seq_len).long()
     text_tensor = torch.zeros(bsz, max_seq_len).long()
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
