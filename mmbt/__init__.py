@@ -1,2 +1,2 @@
-import sys
-sys.path.append('/001/usuarios/isaac.bribiesca/mmbt/mmbt')
+#import sys
+#sys.path.append('/home/est_posgrado_isaac.bribiesca/mmbt_experiments/mmbt')

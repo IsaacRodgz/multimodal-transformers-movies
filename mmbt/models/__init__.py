@@ -15,7 +15,7 @@ from mmbt.models.image import ImageClf
 from mmbt.models.mmbt import MultimodalBertClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
-from mmbt.models.mmtr import MMTransformerClf
+from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
@@ -31,7 +31,7 @@ MODELS = {
     "img": ImageClf,
     "mmbt": MultimodalBertClf,
     "mmbt3": MultimodalBertThreeClf,
-    "mmtr": MMTransformerClf,
+    "mmtr": MMTransformerGMUClf,
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
     "vilbert": VILBertForVLTasks,

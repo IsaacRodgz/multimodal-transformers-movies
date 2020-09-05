@@ -15,11 +15,6 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from pytorch_transformers.optimization import (
-    AdamW,
-    WarmupConstantSchedule,
-    WarmupLinearSchedule,
-)
 from pytorch_pretrained_bert import BertAdam
 from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 
@@ -27,7 +22,6 @@ from mmbt.data.helpers import get_data_loaders
 from mmbt.models import get_model
 from mmbt.utils.logger import create_logger
 from mmbt.utils.utils import *
-from mmbt.utils.optimization import RAdam
 from mmbt.models.vilbert import BertConfig
 
 from os.path import expanduser
@@ -69,6 +63,7 @@ def get_args(parser):
     parser.add_argument("--task_type", type=str, default="multilabel", choices=["multilabel", "classification"])
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
+    parser.add_argument('--output_gates', action='store_true', help='Store GMU gates of test dataset to a file (default: false)')
     
     '''AdaptaBERT parameter'''
     parser.add_argument("--trained_model_dir",
@@ -182,11 +177,15 @@ def get_scheduler(optimizer, args):
     )
 
 
-def model_eval(i_epoch, data, model, args, criterion, store_preds=False):
+def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_gates=False):
     with torch.no_grad():
         losses, preds, tgts = [], [], []
+        all_gates = []  # For gmu gate interpretability
         for batch in data:
-            loss, out, tgt = model_forward(i_epoch, model, args, criterion, batch)
+            if output_gates:
+                loss, out, tgt, gates = model_forward(i_epoch, model, args, criterion, batch, output_gates)
+            else:
+                loss, out, tgt = model_forward(i_epoch, model, args, criterion, batch)
             losses.append(loss.item())
 
             if args.task_type == "multilabel":
@@ -197,6 +196,9 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False):
             preds.append(pred)
             tgt = tgt.cpu().detach().numpy()
             tgts.append(tgt)
+            if output_gates:
+                gates = gates.cpu().detach().numpy()
+                all_gates.append(gates)
 
     metrics = {"loss": np.mean(losses)}
     if args.task_type == "multilabel":
@@ -208,14 +210,19 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False):
         tgts = [l for sl in tgts for l in sl]
         preds = [l for sl in preds for l in sl]
         metrics["acc"] = accuracy_score(tgts, preds)
-
+    
     if store_preds:
-        store_preds_to_disk(tgts, preds, args)
+        if output_gates:
+            all_gates = np.vstack(all_gates)
+            print("gates: ", all_gates.shape)
+            store_preds_to_disk(tgts, preds, args, all_gates)
+        else:
+            store_preds_to_disk(tgts, preds, args)
 
     return metrics
 
 
-def model_forward(i_epoch, model, args, criterion, batch):
+def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     if args.model == "mmbt3":
         txt, segment, mask, mm_mask, img, tgt = batch
     else:
@@ -239,7 +246,10 @@ def model_forward(i_epoch, model, args, criterion, batch):
     elif args.model in ["concatbert", "mmtr"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
-        out = model(txt, mask, segment, img)        
+        if gmu_gate:
+            out, gates = model(txt, mask, segment, img, gmu_gate)
+        else:
+            out = model(txt, mask, segment, img)
     elif args.model == "vilbert":
         txt, img = txt.cuda(), img.cuda()
         out = model(txt, img)
@@ -261,7 +271,11 @@ def model_forward(i_epoch, model, args, criterion, batch):
 
     tgt = tgt.cuda()
     loss = criterion(out, tgt)
-    return loss, out, tgt
+    
+    if gmu_gate:
+        return loss, out, tgt, gates
+    else:
+        return loss, out, tgt
 
 
 def train(args):
@@ -357,7 +371,7 @@ def train(args):
     model.eval()
 
     test_metrics = model_eval(
-        np.inf, test_loader, model, args, criterion, store_preds=True
+        np.inf, test_loader, model, args, criterion, store_preds=True, output_gates=args.output_gates
     )
     log_metrics(f"Test - ", test_metrics, args, logger)
 

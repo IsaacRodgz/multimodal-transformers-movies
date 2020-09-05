@@ -52,7 +52,7 @@ def truncate_seq_pair(tokens_a, tokens_b, max_length):
             tokens_b.pop()
 
 
-def store_preds_to_disk(tgts, preds, args):
+def store_preds_to_disk(tgts, preds, args, gates=None):
     if args.task_type == "multilabel":
         with open(os.path.join(args.savedir, "test_labels_pred.txt"), "w") as fw:
             fw.write(
@@ -72,6 +72,9 @@ def store_preds_to_disk(tgts, preds, args):
             fw.write("\n".join([str(x) for x in tgts]))
         with open(os.path.join(args.savedir, "test_labels.txt"), "w") as fw:
             fw.write(" ".join([str(l) for l in args.labels]))
+    
+    if gates is not None:
+        np.save(os.path.join(args.savedir, "gates.npy"), gates)
 
 
 def log_metrics(set_name, metrics, args, logger):
