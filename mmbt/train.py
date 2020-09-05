@@ -15,6 +15,11 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from pytorch_transformers.optimization import (
+    AdamW,
+    WarmupConstantSchedule,
+    WarmupLinearSchedule,
+)
 from pytorch_pretrained_bert import BertAdam
 from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 
@@ -22,6 +27,7 @@ from mmbt.data.helpers import get_data_loaders
 from mmbt.models import get_model
 from mmbt.utils.logger import create_logger
 from mmbt.utils.utils import *
+from mmbt.utils.optimization import RAdam
 from mmbt.models.vilbert import BertConfig
 
 from os.path import expanduser
