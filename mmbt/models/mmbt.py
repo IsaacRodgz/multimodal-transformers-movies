@@ -9,6 +9,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from pytorch_pretrained_bert.modeling import BertModel
 from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 from collections import OrderedDict
@@ -79,6 +80,7 @@ class MultimodalBertEncoder(nn.Module):
         self.img_encoder = ImageEncoder(args)
         self.encoder = bert.encoder
         self.pooler = bert.pooler
+        self.att_query = nn.Parameter(torch.rand(args.hidden_sz))
         self.clf = nn.Linear(args.hidden_sz, args.n_classes)
 
     def forward(self, input_txt, attention_mask, segment, input_img):
@@ -105,12 +107,21 @@ class MultimodalBertEncoder(nn.Module):
         img_embed_out = self.img_embeddings(img, img_tok)
         txt_embed_out = self.txt_embeddings(input_txt, segment)
         encoder_input = torch.cat([img_embed_out, txt_embed_out], 1)  # Bx(TEXT+IMG)xHID
-
+        
         encoded_layers = self.encoder(
-            encoder_input, extended_attention_mask, output_all_encoded_layers=False
-        )
+                encoder_input, extended_attention_mask, output_all_encoded_layers=False
+            )
+        
+        if self.args.pooling == 'cls':
+            output = self.pooler(encoded_layers[-1])
+        
+        else:
+            hidden = encoded_layers[-1]  # Get all hidden vectors of last layer (B, L, hidden_sz)
+            dot = (hidden*self.att_query).sum(-1)  # Matrix of dot products (B, L)
+            weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
+            output = (hidden*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
 
-        return self.pooler(encoded_layers[-1])
+        return output
 
 
 class MultimodalBertClf(nn.Module):
