@@ -64,7 +64,7 @@ def get_args(parser):
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
     parser.add_argument('--output_gates', action='store_true', help='Store GMU gates of test dataset to a file (default: false)')
-    parser.add_argument("--pooling", type=str, default="cls", choices=["cls", "att"], help='Type of pooling technique for BERT models')
+    parser.add_argument("--pooling", type=str, default="cls", choices=["cls", "att", "cls_att", "vert_att"], help='Type of pooling technique for BERT models')
     
     '''AdaptaBERT parameter'''
     parser.add_argument("--trained_model_dir",

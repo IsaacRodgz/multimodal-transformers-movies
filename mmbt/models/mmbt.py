@@ -75,11 +75,20 @@ class MultimodalBertEncoder(nn.Module):
                 bert.embeddings.token_type_embeddings.weight.data.mean(dim=0)
             )
             self.txt_embeddings.token_type_embeddings = ternary_embeds
+            
+        if self.args.pooling == 'cls_att':
+            pooling_dim = 2*args.hidden_sz
+        else:
+            pooling_dim = args.hidden_sz
 
         self.img_embeddings = ImageBertEmbeddings(args, self.txt_embeddings)
         self.img_encoder = ImageEncoder(args)
         self.encoder = bert.encoder
         self.pooler = bert.pooler
+        self.pooler_custom = nn.Sequential(
+          nn.Linear(pooling_dim, args.hidden_sz),
+          nn.Tanh(),
+        )
         self.att_query = nn.Parameter(torch.rand(args.hidden_sz))
         self.clf = nn.Linear(args.hidden_sz, args.n_classes)
 
@@ -108,18 +117,38 @@ class MultimodalBertEncoder(nn.Module):
         txt_embed_out = self.txt_embeddings(input_txt, segment)
         encoder_input = torch.cat([img_embed_out, txt_embed_out], 1)  # Bx(TEXT+IMG)xHID
         
+        # Output all encoded layers only for vertical attention on CLS token
         encoded_layers = self.encoder(
-                encoder_input, extended_attention_mask, output_all_encoded_layers=False
+                encoder_input, extended_attention_mask, output_all_encoded_layers=(self.args.pooling == 'vert_att')
             )
         
         if self.args.pooling == 'cls':
             output = self.pooler(encoded_layers[-1])
         
-        else:
+        elif self.args.pooling == 'att':
             hidden = encoded_layers[-1]  # Get all hidden vectors of last layer (B, L, hidden_sz)
             dot = (hidden*self.att_query).sum(-1)  # Matrix of dot products (B, L)
             weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
             output = (hidden*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
+            # TODO: Add self.pooler_custom layer
+            
+        elif self.args.pooling == 'cls_att':
+            hidden = encoded_layers[-1]  # Get all hidden vectors of last layer (B, L, hidden_sz)
+            cls_token = hidden[:, 0]  # Extract vector of CLS token
+            word_tokens = hidden[:, 1:]
+            dot = (word_tokens*self.att_query).sum(-1)  # Matrix of dot products (B, L)
+            weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
+            weighted_sum = (word_tokens*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
+            pooler_cat = torch.cat([cls_token, weighted_sum], dim=1)
+            output = self.pooler_custom(pooler_cat)
+        
+        else:
+            hidden = [cls_hidden[:, 0] for cls_hidden in encoded_layers]  # Get all hidden vectors corresponding to CLS token (B, Num_bert_layers, hidden_sz)
+            hidden = torch.stack(hidden, dim=1)  # Convert to tensor (B, Num_bert_layers, hidden_sz)
+            dot = (hidden*self.att_query).sum(-1)  # Matrix of dot products (B, Num_bert_layers)
+            weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, Num_bert_layers, 1)
+            weighted_sum = (hidden*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
+            output = self.pooler_custom(weighted_sum)
 
         return output
 
