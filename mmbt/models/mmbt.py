@@ -129,8 +129,8 @@ class MultimodalBertEncoder(nn.Module):
             hidden = encoded_layers[-1]  # Get all hidden vectors of last layer (B, L, hidden_sz)
             dot = (hidden*self.att_query).sum(-1)  # Matrix of dot products (B, L)
             weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
-            output = (hidden*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
-            # TODO: Add self.pooler_custom layer
+            weighted_sum = (hidden*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
+            output = self.pooler_custom(weighted_sum)
             
         elif self.args.pooling == 'cls_att':
             hidden = encoded_layers[-1]  # Get all hidden vectors of last layer (B, L, hidden_sz)
