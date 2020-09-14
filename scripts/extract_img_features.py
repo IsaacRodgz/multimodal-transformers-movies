@@ -14,12 +14,18 @@ import numpy as np
 import torch
 from PIL import Image
 
-from maskrcnn_benchmark.config import cfg
-from maskrcnn_benchmark.layers import nms
-from maskrcnn_benchmark.modeling.detector import build_detection_model
-from maskrcnn_benchmark.structures.image_list import to_image_list
-from maskrcnn_benchmark.utils.model_serialization import load_state_dict
+import detectron2
+from detectron2 import model_zoo
+from detectron2.engine import DefaultPredictor
+from detectron2.modeling import build_model
+from detectron2.config import get_cfg
 
+from os.path import expanduser
+import sys
+
+import os
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 class FeatureExtractor:
     MAX_SIZE = 1333
@@ -73,15 +79,18 @@ class FeatureExtractor:
         return parser
 
     def _build_detection_model(self):
-        cfg.merge_from_file(self.args.config_file)
+        cfg = get_cfg()
+        cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"))
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.2
+        cfg.MODEL.WEIGHTS = expanduser("~")+"/mmbt/model_final_f6e8b1.pkl"
+        cfg.MODEL.DEVICE='cuda'
         cfg.freeze()
+        model = build_model(cfg)
+        
+        #model_dict = torch.load(expanduser("~")+"/mmbt/model_final_f6e8b1.pkl", map_location=torch.device('cuda'))
+        #model.load_state_dict(model_dict['model'] )
+        #model.train(False)
 
-        model = build_detection_model(cfg)
-        checkpoint = torch.load(self.args.model_file, map_location=torch.device("cpu"))
-
-        load_state_dict(model, checkpoint.pop("model"))
-
-        model.to("cuda")
         model.eval()
         return model
 
@@ -174,19 +183,28 @@ class FeatureExtractor:
     def get_detectron_features(self, image_paths):
         img_tensor, im_scales, im_infos = [], [], []
 
+        print("\nIn get_detectron_features")
         for image_path in image_paths:
             im, im_scale, im_info = self._image_transform(image_path)
+            print(image_path)
             img_tensor.append(im)
             im_scales.append(im_scale)
             im_infos.append(im_info)
+            
+        current_img_list = [{'image': t.to("cuda")} for t in img_tensor]
+        print("current_img_list: ", len(current_img_list))
 
         # Image dimensions should be divisible by 32, to allow convolutions
         # in detector to work
-        current_img_list = to_image_list(img_tensor, size_divisible=32)
-        current_img_list = current_img_list.to("cuda")
+        #current_img_list = to_image_list(img_tensor, size_divisible=32)
+        #current_img_list = current_img_list.to("cuda")
+        #print("current_img_list: ", current_img_list)
 
         with torch.no_grad():
+            print("predicting")
             output = self.detection_model(current_img_list)
+            
+        print("output: ", output)
 
         feat_list = self._process_feature_extraction(
             output,
@@ -218,6 +236,7 @@ class FeatureExtractor:
             self._save_feature(image_dir, features[0], infos[0])
         else:
             files = glob.glob(os.path.join(image_dir, "*"))
+            files = [f for f in files if '.jpeg' in f]
             # files = sorted(files)
             # files = [files[i: i+1000] for i in range(0, len(files), 1000)][self.args.partition]
             for chunk in self._chunks(files, self.args.batch_size):

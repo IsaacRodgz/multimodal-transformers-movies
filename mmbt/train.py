@@ -51,7 +51,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -129,7 +129,7 @@ def get_optimizer(model, args):
             warmup=args.warmup,
             t_total=total_steps,
         )
-    elif args.model == "vilbert":
+    elif args.model in ["vilbert", "mmvilbt"]:
         total_steps = (
             args.train_data_len
             / args.batch_sz
@@ -251,7 +251,7 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
             out, gates = model(txt, mask, segment, img, gmu_gate)
         else:
             out = model(txt, mask, segment, img)
-    elif args.model == "vilbert":
+    elif args.model in ["vilbert", "mmvilbt"]:
         txt, img = txt.cuda(), img.cuda()
         out = model(txt, img)
     else:
@@ -290,7 +290,7 @@ def train(args):
     if args.trained_model_dir: # load in fine-tuned (with cloze-style LM objective) model
         args.previous_state_dict_dir = os.path.join(args.trained_model_dir, WEIGHTS_NAME)
 
-    if args.model == "vilbert":
+    if args.model in ["vilbert", "mmvilbt"]:
         config = BertConfig.from_json_file(args.config_file)
         model = get_model(args, config)
     else:
