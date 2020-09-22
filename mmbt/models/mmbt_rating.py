@@ -63,7 +63,7 @@ class MultimodalBertEncoder(nn.Module):
         self.args = args
         
         #self.distilbert = DistilBertModel.from_pretrained("distilbert-base-uncased")
-        self.text2tok_lstm = nn.LSTM(args.hidden_sz, args.hidden_sz, 32, batch_first=True)
+        self.text2tok_lstm = nn.LSTM(args.hidden_sz, args.hidden_sz, 16, batch_first=True)
         self.att_pooling = nn.Parameter(torch.rand(args.hidden_sz))
         
         bert = BertModel.from_pretrained(args.bert_model)
@@ -101,10 +101,8 @@ class MultimodalBertEncoder(nn.Module):
         # Process text in chunks
         chunk_tokens = []
         num_steps = input_txt.size(1)//self.args.chunk_size + (input_txt.size(1)//self.args.chunk_size != 0)
-        
-        print("total steps: ", num_steps)
-        
-        for i in range(num_steps-1):
+                
+        for i in range(num_steps):
             #cls_id = torch.LongTensor([self.args.vocab.stoi["[CLS]"]]).cuda()
             #cls_id = cls_id.unsqueeze(0).expand(bsz, 1)
             
@@ -132,7 +130,10 @@ class MultimodalBertEncoder(nn.Module):
             )
             '''
             
-            token_chunk_embeddings = self.txt_embeddings(input_txt[:, start_idx:end_idx])
+            if i == input_txt.size(1)//self.args.chunk_size:
+                self.txt_embeddings(input_txt[:, start_idx:])
+            else:
+                token_chunk_embeddings = self.txt_embeddings(input_txt[:, start_idx:end_idx])
             
             #out = self.distilbert(token_chunk_embeddings, extended_attention_mask)
             out = self.text2tok_lstm(token_chunk_embeddings)[0]
@@ -141,15 +142,16 @@ class MultimodalBertEncoder(nn.Module):
             weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
             weighted_sum = (out*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
             
-            chunk_tokens.append(weighted_sum)
-            print("i: ", i)
+            chunk_tokens.append(weighted_sum.detach())
             
-        import pdb; pdb.set_trace()
+        txt_embed = torch.stack(chunk_tokens, dim=1)
+            
+        #import pdb; pdb.set_trace()
         
         attention_mask = torch.cat(
             [
                 torch.ones(bsz, self.args.num_image_embeds + 2).long().cuda(),
-                attention_mask,
+                torch.ones(bsz, txt_embed.size(1)).long().cuda(),
             ],
             dim=1,
         )
@@ -160,13 +162,19 @@ class MultimodalBertEncoder(nn.Module):
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
 
         img_tok = (
-            torch.LongTensor(input_txt.size(0), self.args.num_image_embeds + 2)
+            torch.LongTensor(txt_embed.size(0), self.args.num_image_embeds + 2)
             .fill_(0)
             .cuda()
         )
+        segment = (
+            torch.LongTensor(txt_embed.size(0), txt_embed.size(2))
+            .fill_(1)
+            .cuda()
+        ).unsqueeze(1)
+        
         img = self.img_encoder(input_img)  # BxNx3x224x224 -> BxNx2048
         img_embed_out = self.img_embeddings(img, img_tok)
-        txt_embed_out = self.txt_embeddings(input_txt, segment)
+        txt_embed_out = segment+txt_embed
         encoder_input = torch.cat([img_embed_out, txt_embed_out], 1)  # Bx(TEXT+IMG)xHID
         
         # Output all encoded layers only for vertical attention on CLS token
