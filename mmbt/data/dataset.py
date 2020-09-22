@@ -10,7 +10,8 @@
 import json
 import numpy as np
 import os
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 import torch
 from torch.utils.data import Dataset
@@ -27,11 +28,13 @@ class JsonlDataset(Dataset):
         self.vocab = vocab
         self.n_classes = len(args.labels)
         self.text_start_token = ["[CLS]"] if args.model != "mmbt" else ["[SEP]"]
-
+    
+        '''
         with numpy_seed(0):
             for row in self.data:
                 if np.random.random() < args.drop_img_percent:
                     row["img"] = None
+        '''
 
         self.max_seq_len = args.max_seq_len
         if args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]:
@@ -43,7 +46,10 @@ class JsonlDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        if self.args.task == "vsnli":
+        if self.args.task == "mpaa":
+            sentence = self.tokenizer(self.data[index]["script"])
+            segment = torch.zeros(len(sentence))
+        elif self.args.task == "vsnli":
             sent1 = self.tokenizer(self.data[index]["sentence1"])
             sent2 = self.tokenizer(self.data[index]["sentence2"])
             truncate_seq_pair(sent1, sent2, self.args.max_seq_len - 3)
@@ -79,7 +85,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:

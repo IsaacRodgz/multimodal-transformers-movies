@@ -39,6 +39,7 @@ def get_transforms(args):
 def get_labels_and_frequencies(path):
     label_freqs = Counter()
     data_labels = [json.loads(line)["label"] for line in open(path)]
+
     if type(data_labels[0]) == list:
         for label_row in data_labels:
             label_freqs.update(label_row)
@@ -66,7 +67,7 @@ def get_vocab(args):
         vocab.itos = bert_tokenizer.ids_to_tokens
         vocab.vocab_sz = len(vocab.itos)
         
-    elif args.model in ["mmdbt"]:
+    elif args.model in ["mmdbt", "mmbtrating"]:
         distilbert_tokenizer = DistilBertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -83,23 +84,25 @@ def get_vocab(args):
 
 
 def collate_fn(batch, args):
+
     lens = [len(row[0]) for row in batch]
     bsz, max_seq_len = len(batch), max(lens)
-    mm_max_seq_len = args.max_seq_len - (args.num_image_embeds+2) - (max_seq_len+1)
-    mm_seq_len = min(mm_max_seq_len, max_seq_len+args.num_image_embeds)
-    mm_seq_len = max(0, mm_seq_len)
 
     if args.model == "mmbt3":
+        mm_max_seq_len = args.max_seq_len - (args.num_image_embeds+2) - (max_seq_len+1)
+        mm_seq_len = min(mm_max_seq_len, max_seq_len+args.num_image_embeds)
+        mm_seq_len = max(0, mm_seq_len)
         mask_tensor = torch.zeros(bsz, max_seq_len+1).long()
+        mm_mask_tensor = torch.zeros(bsz, mm_seq_len).long()
     else:
         mask_tensor = torch.zeros(bsz, max_seq_len).long()
-    mm_mask_tensor = torch.zeros(bsz, mm_seq_len).long()
+    
     text_tensor = torch.zeros(bsz, max_seq_len).long()
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
 
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating"]:
         img_tensor = torch.stack([row[2] for row in batch])
 
     if args.task_type == "multilabel":
@@ -118,7 +121,7 @@ def collate_fn(batch, args):
             mm_mask_tensor[i_batch, :length+args.num_image_embeds] = 1
         else:
             mask_tensor[i_batch, :length] = 1
-
+    
     if args.model == "mmbt3":
         return text_tensor, segment_tensor, mask_tensor, mm_mask_tensor, img_tensor, tgt_tensor
     else:
@@ -138,7 +141,7 @@ def get_data_loaders(args):
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )
     
-    elif args.model == "mmdbt":
+    elif args.model in ["mmdbt", "mmbtrating"]:
         tokenizer = (
             DistilBertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )

@@ -27,7 +27,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
 def get_args(parser):
@@ -51,7 +51,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -59,12 +59,13 @@ def get_args(parser):
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--savedir", type=str, default="/path/to/save_dir/")
     parser.add_argument("--seed", type=int, default=123)
-    parser.add_argument("--task", type=str, default="mmimdb", choices=["mmimdb", "vsnli", "food101"])
+    parser.add_argument("--task", type=str, default="mmimdb", choices=["mmimdb", "vsnli", "food101", "mpaa"])
     parser.add_argument("--task_type", type=str, default="multilabel", choices=["multilabel", "classification"])
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
     parser.add_argument('--output_gates', action='store_true', help='Store GMU gates of test dataset to a file (default: false)')
     parser.add_argument("--pooling", type=str, default="cls", choices=["cls", "att", "cls_att", "vert_att"], help='Type of pooling technique for BERT models')
+    parser.add_argument("--chunk_size", type=int, default=100)
     
     '''AdaptaBERT parameter'''
     parser.add_argument("--trained_model_dir",
@@ -110,7 +111,7 @@ def get_criterion(args):
 
 
 def get_optimizer(model, args):
-    if args.model in ["bert", "concatbert", "mmbt", "mmbtp", "mmbt3"]:
+    if args.model in ["bert", "concatbert", "mmbt", "mmbtp", "mmbt3", "mmbtrating"]:
         total_steps = (
             args.train_data_len
             / args.batch_sz
@@ -255,7 +256,7 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         txt, img = txt.cuda(), img.cuda()
         out = model(txt, img)
     else:
-        assert args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]
+        assert args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3", "mmbtrating"]
         for param in model.enc.img_encoder.parameters():
             param.requires_grad = not freeze_img
         for param in model.enc.encoder.parameters():
