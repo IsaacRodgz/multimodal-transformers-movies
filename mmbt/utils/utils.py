@@ -86,8 +86,8 @@ def log_metrics(set_name, metrics, args, logger):
         )
     else:
         logger.info(
-            "{}: Loss: {:.5f} | Acc: {:.5f}".format(
-                set_name, metrics["loss"], metrics["acc"]
+            "{}: Loss: {:.5f} | Wighted F1: {:.5f}".format(
+                set_name, metrics["loss"], metrics["wighted_f1"]
             )
         )
 

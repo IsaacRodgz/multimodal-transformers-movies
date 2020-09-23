@@ -945,10 +945,6 @@ class BertEncoder(nn.Module):
         output_all_encoded_layers=True,
         output_all_attention_masks=False,
     ):
-        print("txt_attention_mask: ", txt_attention_mask.shape)
-        print("txt_attention_mask2: ", txt_attention_mask2.shape)
-        print("image_attention_mask: ", image_attention_mask.shape)
-        print("co_attention_mask: ", co_attention_mask.shape)
 
         v_start = 0
         t_start = 0
@@ -1331,10 +1327,6 @@ class BertModel(BertPreTrainedModel):
             attention_mask = torch.ones_like(input_txt)
         if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_txt)
-        if image_attention_mask is None:
-            image_attention_mask = torch.ones(
-                input_imgs.size(0), 8
-            ).type_as(input_txt)
         
         if self.task_specific_tokens:
             # extend the mask
@@ -1347,7 +1339,6 @@ class BertModel(BertPreTrainedModel):
         # this attention mask is more simple than the triangular masking of causal attention
         # used in OpenAI GPT, we just need to prepare the broadcast dimension here.
         extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
-        extended_image_attention_mask = image_attention_mask.unsqueeze(1).unsqueeze(2)
 
         extended_attention_mask2 = attention_mask.unsqueeze(2)
         # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
@@ -1364,6 +1355,15 @@ class BertModel(BertPreTrainedModel):
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
 
+        embedding_output = self.embeddings(input_txt, token_type_ids, task_ids)
+        img, loc = self.img_encoder(input_imgs)
+                
+        if image_attention_mask is None:
+            image_attention_mask = torch.ones(
+                img.size(0), img.size(1)
+            ).type_as(input_txt)
+        extended_image_attention_mask = image_attention_mask.unsqueeze(1).unsqueeze(2)
+        
         extended_image_attention_mask = extended_image_attention_mask.to(
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
@@ -1371,7 +1371,7 @@ class BertModel(BertPreTrainedModel):
 
         if co_attention_mask is None:
             co_attention_mask = torch.zeros(
-                input_txt.size(0), input_imgs.size(1), input_txt.size(1)
+                input_txt.size(0), img.size(1), input_txt.size(1)
             ).type_as(extended_image_attention_mask)
 
         extended_co_attention_mask = co_attention_mask.unsqueeze(1)
@@ -1381,22 +1381,9 @@ class BertModel(BertPreTrainedModel):
         extended_co_attention_mask = extended_co_attention_mask.to(
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
-        '''
-        # image token type ids
-        img_tok = (
-            torch.LongTensor(input_txt.size(0), self.config.args.num_image_embeds + 2)
-            .fill_(0)
-            .cuda()
-        )
-        '''
-        embedding_output = self.embeddings(input_txt, token_type_ids, task_ids)
-        img, loc = self.img_encoder(input_imgs)
+        
         v_embedding_output = self.v_embeddings(img, loc)
-        print("BERT model")
-        print("extended_attention_mask: ", extended_attention_mask.shape)
-        print("extended_attention_mask2: ", extended_attention_mask2.shape)
-        print("extended_image_attention_mask: ", extended_image_attention_mask.shape)
-        print("extended_co_attention_mask: ", extended_co_attention_mask.shape)
+        
         encoded_layers_t, encoded_layers_v, all_attention_mask = self.encoder(
             embedding_output,
             v_embedding_output,

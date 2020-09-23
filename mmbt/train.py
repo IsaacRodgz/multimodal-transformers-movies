@@ -27,7 +27,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
 def get_args(parser):
@@ -211,7 +211,7 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
     else:
         tgts = [l for sl in tgts for l in sl]
         preds = [l for sl in preds for l in sl]
-        metrics["acc"] = accuracy_score(tgts, preds)
+        metrics["wighted_f1"] = f1_score(tgts, preds, average="weighted")
     
     if store_preds:
         if output_gates:
@@ -342,7 +342,7 @@ def train(args):
         log_metrics("Val", metrics, args, logger)
 
         tuning_metric = (
-            metrics["micro_f1"] if args.task_type == "multilabel" else metrics["acc"]
+            metrics["micro_f1"] if args.task_type == "multilabel" else metrics["wighted_f1"]
         )
         scheduler.step(tuning_metric)
         is_improvement = tuning_metric > best_metric

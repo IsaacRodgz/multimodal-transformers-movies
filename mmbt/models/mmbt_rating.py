@@ -62,9 +62,8 @@ class MultimodalBertEncoder(nn.Module):
         super(MultimodalBertEncoder, self).__init__()
         self.args = args
         
-        #self.distilbert = DistilBertModel.from_pretrained("distilbert-base-uncased")
-        self.text2tok_lstm = nn.LSTM(args.hidden_sz, args.hidden_sz, 16, batch_first=True)
-        self.att_pooling = nn.Parameter(torch.rand(args.hidden_sz))
+        self.distilbert = DistilBertModel.from_pretrained("distilbert-base-uncased")
+        #self.att_pooling = nn.Parameter(torch.rand(args.hidden_sz))
         
         bert = BertModel.from_pretrained(args.bert_model)
         self.txt_embeddings = bert.embeddings
@@ -103,20 +102,20 @@ class MultimodalBertEncoder(nn.Module):
         num_steps = input_txt.size(1)//self.args.chunk_size + (input_txt.size(1)//self.args.chunk_size != 0)
                 
         for i in range(num_steps):
-            #cls_id = torch.LongTensor([self.args.vocab.stoi["[CLS]"]]).cuda()
-            #cls_id = cls_id.unsqueeze(0).expand(bsz, 1)
+            cls_id = torch.LongTensor([self.args.vocab.stoi["[CLS]"]]).cuda()
+            cls_id = cls_id.unsqueeze(0).expand(bsz, 1)
             
-            #sep_id = torch.LongTensor([self.args.vocab.stoi["[SEP]"]]).cuda()
-            #sep_id = sep_id.unsqueeze(0).expand(bsz, 1)
+            sep_id = torch.LongTensor([self.args.vocab.stoi["[SEP]"]]).cuda()
+            sep_id = sep_id.unsqueeze(0).expand(bsz, 1)
             
             start_idx = i*self.args.chunk_size
             end_idx = (i+1)*self.args.chunk_size
             
-            '''
+            
             token_chunk_embeddings = torch.cat(
                 [cls_id, input_txt[:, start_idx:end_idx], sep_id], dim=1
             )
-                        
+            
             extended_attention_mask = torch.cat(
                 [
                     torch.ones(bsz, 1).long().cuda(),
@@ -128,26 +127,18 @@ class MultimodalBertEncoder(nn.Module):
             extended_attention_mask = extended_attention_mask.to(
                 dtype=next(self.parameters()).dtype
             )
-            '''
             
-            if i == input_txt.size(1)//self.args.chunk_size:
-                self.txt_embeddings(input_txt[:, start_idx:])
-            else:
-                token_chunk_embeddings = self.txt_embeddings(input_txt[:, start_idx:end_idx])
+            out = self.distilbert(token_chunk_embeddings, extended_attention_mask)[0]
+            #out = self.text2tok_lstm(token_chunk_embeddings)[0]
+                                    
+            #dot = (out*self.att_pooling).sum(-1)  # Matrix of dot products (B, L)
+            #weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
+            #weighted_sum = (out*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
             
-            #out = self.distilbert(token_chunk_embeddings, extended_attention_mask)
-            out = self.text2tok_lstm(token_chunk_embeddings)[0]
-                        
-            dot = (out*self.att_pooling).sum(-1)  # Matrix of dot products (B, L)
-            weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
-            weighted_sum = (out*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
-            
-            chunk_tokens.append(weighted_sum.detach())
+            chunk_tokens.append(out.detach()[:, 0])
             
         txt_embed = torch.stack(chunk_tokens, dim=1)
-            
-        #import pdb; pdb.set_trace()
-        
+                    
         attention_mask = torch.cat(
             [
                 torch.ones(bsz, self.args.num_image_embeds + 2).long().cuda(),
