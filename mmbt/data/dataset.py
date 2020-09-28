@@ -12,6 +12,7 @@ import numpy as np
 import os
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+import torchvision.transforms as transforms
 
 import torch
 from torch.utils.data import Dataset
@@ -20,7 +21,7 @@ from mmbt.utils.utils import truncate_seq_pair, numpy_seed
 
 
 class JsonlDataset(Dataset):
-    def __init__(self, data_path, tokenizer, transforms, vocab, args):
+    def __init__(self, data_path, tokenizer, transforms_, vocab, args):
         self.data = [json.loads(l) for l in open(data_path)]
         self.data_dir = os.path.dirname(data_path)
         self.tokenizer = tokenizer
@@ -40,7 +41,18 @@ class JsonlDataset(Dataset):
         if args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]:
             self.max_seq_len -= args.num_image_embeds
 
-        self.transforms = transforms
+        self.transforms = transforms_
+        self.vilbert_transforms = transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.406, 0.456, 0.485],
+                    std=[1., 1., 1.],
+                ),
+            ]
+        )
 
     def __len__(self):
         return len(self.data)
@@ -109,7 +121,11 @@ class JsonlDataset(Dataset):
                 ).convert("RGB")
             else:
                 image = Image.fromarray(128 * np.ones((256, 256, 3), dtype=np.uint8))
-            image = self.transforms(image)
+            
+            if self.args.model != "vilbert":
+                image = self.transforms(image)
+            else:
+                image = self.vilbert_transforms(image)
             #'''
             '''
             # Extracted image regions from Faster R-CNN
@@ -134,7 +150,11 @@ class JsonlDataset(Dataset):
                     
                 image = torch.stack(regions_list, dim=0)
             '''
-        
+            
+        if self.args.task == "mpaa":
+            genres = torch.zeros(len(self.args.genres))
+            genres[[self.args.genres.index(tgt) for tgt in self.data[index]["genre"]]] = 1
+                            
         if self.args.model == "mmbt":
             # The first SEP is part of Image Token.
             segment = segment[1:]
@@ -142,4 +162,7 @@ class JsonlDataset(Dataset):
             # The first segment (0) is of images.
             segment += 1
 
-        return sentence, segment, image, label
+        if self.args.task == "mpaa":
+            return sentence, segment, image, label, genres
+        else:
+            return sentence, segment, image, label

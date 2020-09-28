@@ -15,6 +15,7 @@ from transformers import DistilBertTokenizer
 from pytorch_pretrained_bert.modeling import BertModel
 from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 from collections import OrderedDict
+import math
 
 from mmbt.models.image import ImageEncoder
 
@@ -63,7 +64,7 @@ class MultimodalBertEncoder(nn.Module):
         self.args = args
         
         self.distilbert = DistilBertModel.from_pretrained("distilbert-base-uncased")
-        #self.att_pooling = nn.Parameter(torch.rand(args.hidden_sz))
+        self.att_pooling = nn.Parameter(torch.rand(args.hidden_sz))
         
         bert = BertModel.from_pretrained(args.bert_model)
         self.txt_embeddings = bert.embeddings
@@ -131,11 +132,11 @@ class MultimodalBertEncoder(nn.Module):
             out = self.distilbert(token_chunk_embeddings, extended_attention_mask)[0]
             #out = self.text2tok_lstm(token_chunk_embeddings)[0]
                                     
-            #dot = (out*self.att_pooling).sum(-1)  # Matrix of dot products (B, L)
-            #weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
-            #weighted_sum = (out*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
+            dot = (out*self.att_pooling).sum(-1)  # Matrix of dot products (B, L)
+            weights = F.softmax(dot, dim=1).unsqueeze(2)  # Normalize dot products and expand last dim (B, L, 1)
+            weighted_sum = (out*weights).sum(dim=1)  # Weighted sum of hidden vectors (B, hidden_sz)
             
-            chunk_tokens.append(out.detach()[:, 0])
+            chunk_tokens.append(weighted_sum.detach())
             
         txt_embed = torch.stack(chunk_tokens, dim=1)
                     
@@ -202,6 +203,60 @@ class MultimodalBertEncoder(nn.Module):
             output = self.pooler_custom(weighted_sum)
 
         return output
+    
+    
+def gelu(x):
+    """Implementation of the gelu activation function.
+        For information: OpenAI GPT's gelu is slightly different (and gives slightly different results):
+        0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+        Also see https://arxiv.org/abs/1606.08415
+    """
+    return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+
+
+class GeLU(nn.Module):
+    """Implementation of the gelu activation function.
+        For information: OpenAI GPT's gelu is slightly different (and gives slightly different results):
+        0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+        Also see https://arxiv.org/abs/1606.08415
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return gelu(x)
+    
+    
+class BertLayerNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-12):
+        """Construct a layernorm module in the TF style (epsilon inside the square root).
+        """
+        super(BertLayerNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.bias = nn.Parameter(torch.zeros(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.weight * x + self.bias
+    
+    
+class SimpleClassifier(nn.Module):
+    def __init__(self, in_dim, hid_dim, out_dim, dropout):
+        super().__init__()
+        self.logit_fc = nn.Sequential(
+            nn.Linear(in_dim, hid_dim),
+            nn.Dropout(dropout),
+            GeLU(),
+            BertLayerNorm(hid_dim, eps=1e-12),
+            nn.Linear(hid_dim, out_dim),
+        )
+
+    def forward(self, hidden_states):
+        return self.logit_fc(hidden_states)
 
 
 class MultimodalBertRatingClf(nn.Module):
@@ -209,8 +264,10 @@ class MultimodalBertRatingClf(nn.Module):
         super(MultimodalBertRatingClf, self).__init__()
         self.args = args
         self.enc = MultimodalBertEncoder(args)
-        self.clf = nn.Linear(args.hidden_sz, args.n_classes)
+        #self.clf = nn.Linear(args.hidden_sz+len(args.genres), args.n_classes)
+        self.clf = SimpleClassifier(args.hidden_sz+len(args.genres), args.hidden_sz+len(args.genres), args.n_classes, 0.)
 
-    def forward(self, txt, mask, segment, img):
+    def forward(self, txt, mask, segment, img, genres):
         x = self.enc(txt, mask, segment, img)
-        return self.clf(x)
+        input_cls = torch.cat((x, genres), dim=1)
+        return self.clf(input_cls)

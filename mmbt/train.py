@@ -15,6 +15,11 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from pytorch_transformers.optimization import (
+    AdamW,
+    WarmupConstantSchedule,
+    WarmupLinearSchedule,
+)
 from pytorch_pretrained_bert import BertAdam
 from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 
@@ -105,8 +110,13 @@ def get_criterion(args):
         else:
             criterion = nn.BCEWithLogitsLoss()
     else:
-        criterion = nn.CrossEntropyLoss()
-
+        if args.weight_classes:
+            freqs = [args.label_freqs[l] for l in args.labels]
+            label_weights = (torch.FloatTensor(freqs) / args.train_data_len) ** -1
+            criterion = nn.CrossEntropyLoss(weight=label_weights.cuda())
+        else:
+            criterion = nn.CrossEntropyLoss()
+            
     return criterion
 
 
@@ -226,9 +236,12 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
 
 def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     if args.model == "mmbt3":
-        txt, segment, mask, mm_mask, img, tgt = batch
+        txt, segment, mask, mm_mask, img, tgt, _ = batch
     else:
-        txt, segment, mask, img, tgt = batch
+        if args.task == "mpaa":
+            txt, segment, mask, img, tgt, genres = batch
+        else:
+            txt, segment, mask, img, tgt, _ = batch
 
     freeze_img = i_epoch < args.freeze_img
     freeze_txt = i_epoch < args.freeze_txt
@@ -269,7 +282,11 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
             mm_mask = mm_mask.cuda()
             out = model(txt, mask, mm_mask, img)
         else:
-            out = model(txt, mask, segment, img)
+            if args.task == "mpaa":
+                genres = genres.cuda()
+                out = model(txt, mask, segment, img, genres)
+            else:
+                out = model(txt, mask, segment, img)
 
     tgt = tgt.cuda()
     loss = criterion(out, tgt)
@@ -300,6 +317,15 @@ def train(args):
     criterion = get_criterion(args)
     optimizer = get_optimizer(model, args)
     scheduler = get_scheduler(optimizer, args)
+    
+    '''
+    if args.model == "vilbert":
+        num_train_optimization_steps = int(len(train_loader) / args.batch_sz / args.gradient_accumulation_steps)*args.max_epochs
+        warmup_steps = args.warmup*num_train_optimization_steps
+        scheduler = WarmupLinearSchedule(
+                optimizer, warmup_steps=warmup_steps, t_total=num_train_optimization_steps
+            )
+    '''
 
     logger = create_logger("%s/logfile.log" % args.savedir, args)
     logger.info(model)

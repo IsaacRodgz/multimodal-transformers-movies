@@ -101,9 +101,12 @@ def collate_fn(batch, args):
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
-
     if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating"]:
         img_tensor = torch.stack([row[2] for row in batch])
+        
+    genres = None
+    if args.task == "mpaa":
+        genres = torch.stack([row[4] for row in batch])
 
     if args.task_type == "multilabel":
         # Multilabel case
@@ -123,9 +126,9 @@ def collate_fn(batch, args):
             mask_tensor[i_batch, :length] = 1
     
     if args.model == "mmbt3":
-        return text_tensor, segment_tensor, mask_tensor, mm_mask_tensor, img_tensor, tgt_tensor
+        return text_tensor, segment_tensor, mask_tensor, mm_mask_tensor, img_tensor, tgt_tensor, genres
     else:
-        return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor
+        return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, genres
 
 
 def get_data_loaders(args):
@@ -154,6 +157,8 @@ def get_data_loaders(args):
     args.labels, args.label_freqs = get_labels_and_frequencies(
         os.path.join(args.data_path, args.task, "train.jsonl")
     )
+    genres = [g for line in open(os.path.join(args.data_path, args.task, "train.jsonl")) for g in json.loads(line)["genre"]]
+    args.genres = list(set(genres))
     vocab = get_vocab(args)
     args.vocab = vocab
     args.vocab_sz = vocab.vocab_sz
