@@ -20,6 +20,7 @@ from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
 from mmbt.models.mmbt_rating import MultimodalBertRatingClf
+from mmbt.models.mmtr_rating import MMTransformerRatingClf
 
 
 MODELS = {
@@ -37,6 +38,7 @@ MODELS = {
     "mmdbt": MultimodalDistilBertClf,
     "vilbert": VILBertForVLTasks,
     "mmbtrating": MultimodalBertRatingClf,
+    "mmtrrating": MMTransformerRatingClf,
 }
 
 

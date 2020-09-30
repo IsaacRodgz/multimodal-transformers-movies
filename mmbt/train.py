@@ -56,7 +56,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -258,13 +258,17 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     elif args.model == "bert":
         txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
         out = model(txt, mask, segment)
-    elif args.model in ["concatbert", "mmtr"]:
+    elif args.model in ["concatbert", "mmtr", "mmtrrating"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
         if gmu_gate:
             out, gates = model(txt, mask, segment, img, gmu_gate)
         else:
-            out = model(txt, mask, segment, img)
+            if args.task == "mpaa":
+                genres = genres.cuda()
+                out = model(txt, mask, segment, img, genres)
+            else:
+                out = model(txt, mask, segment, img)
     elif args.model in ["vilbert", "mmvilbt"]:
         txt, img = txt.cuda(), img.cuda()
         out = model(txt, img)

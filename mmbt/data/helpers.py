@@ -67,7 +67,7 @@ def get_vocab(args):
         vocab.itos = bert_tokenizer.ids_to_tokens
         vocab.vocab_sz = len(vocab.itos)
         
-    elif args.model in ["mmdbt", "mmbtrating"]:
+    elif args.model in ["mmdbt", "mmbtrating", "mmtrrating"]:
         distilbert_tokenizer = DistilBertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -101,7 +101,7 @@ def collate_fn(batch, args):
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating"]:
         img_tensor = torch.stack([row[2] for row in batch])
         
     genres = None
@@ -144,7 +144,7 @@ def get_data_loaders(args):
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )
     
-    elif args.model in ["mmdbt", "mmbtrating"]:
+    elif args.model in ["mmdbt", "mmbtrating", "mmtrrating"]:
         tokenizer = (
             DistilBertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )
