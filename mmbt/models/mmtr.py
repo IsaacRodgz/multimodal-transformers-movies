@@ -340,15 +340,15 @@ class MMTransformerUniClf(nn.Module):
         self.proj_v = nn.Conv1d(self.orig_d_v, self.d_v, kernel_size=1, padding=0, bias=False)
 
         # 2. Crossmodal Attentions
-        #if self.lonly:
-        #    self.trans_l_with_v = self.get_network(self_type='lv')
-        if self.vonly:
-            self.trans_v_with_l = self.get_network(self_type='vl')
+        if self.lonly:
+            self.trans_l_with_v = self.get_network(self_type='lv')
+        #if self.vonly:
+        #    self.trans_v_with_l = self.get_network(self_type='vl')
         
         # 3. Self Attentions (Could be replaced by LSTMs, GRUs, etc.)
         #    [e.g., self.trans_x_mem = nn.LSTM(self.d_x, self.d_x, 1)
-        #self.trans_l_mem = self.get_network(self_type='l_mem', layers=3)
-        self.trans_v_mem = self.get_network(self_type='v_mem', layers=3)
+        self.trans_l_mem = self.get_network(self_type='l_mem', layers=3)
+        #self.trans_v_mem = self.get_network(self_type='v_mem', layers=3)
        
         # Projection layers
         self.proj1 = nn.Linear(combined_dim, combined_dim)
@@ -397,7 +397,7 @@ class MMTransformerUniClf(nn.Module):
         proj_x_v = proj_x_v.permute(2, 0, 1)
         proj_x_l = proj_x_l.permute(2, 0, 1)
 
-        '''
+        
         if self.lonly:
             # V --> L
             h_l_with_vs = self.trans_l_with_v(proj_x_l, proj_x_v, proj_x_v)    # Dimension (L, N, d_l)
@@ -413,8 +413,8 @@ class MMTransformerUniClf(nn.Module):
             if type(h_vs) == tuple:
                 h_vs = h_vs[0]
             last_h_v = last_hs = h_vs[-1]
-        
-        last_hs = last_h_v
+        '''
+        last_hs = last_h_l
         
         # A residual block
         last_hs_proj = self.proj2(F.dropout(F.relu(self.proj1(last_hs)), p=self.out_dropout, training=self.training))

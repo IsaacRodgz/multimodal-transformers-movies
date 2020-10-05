@@ -157,8 +157,9 @@ def get_data_loaders(args):
     args.labels, args.label_freqs = get_labels_and_frequencies(
         os.path.join(args.data_path, args.task, "train.jsonl")
     )
-    genres = [g for line in open(os.path.join(args.data_path, args.task, "train.jsonl")) for g in json.loads(line)["genre"]]
-    args.genres = list(set(genres))
+    if args.task == "mpaa":
+        genres = [g for line in open(os.path.join(args.data_path, args.task, "train.jsonl")) for g in json.loads(line)["genre"]]
+        args.genres = list(set(genres))
     vocab = get_vocab(args)
     args.vocab = vocab
     args.vocab_sz = vocab.vocab_sz

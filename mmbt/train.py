@@ -193,6 +193,7 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
     with torch.no_grad():
         losses, preds, tgts = [], [], []
         all_gates = []  # For gmu gate interpretability
+        raw_preds = []
         for batch in data:
             if output_gates:
                 loss, out, tgt, gates = model_forward(i_epoch, model, args, criterion, batch, output_gates)
@@ -202,6 +203,7 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
 
             if args.task_type == "multilabel":
                 pred = torch.sigmoid(out).cpu().detach().numpy() > 0.5
+                raw_preds.append(torch.sigmoid(out).cpu().detach().numpy())
             else:
                 pred = torch.nn.functional.softmax(out, dim=1).argmax(dim=1).cpu().detach().numpy()
 
@@ -216,6 +218,7 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
     if args.task_type == "multilabel":
         tgts = np.vstack(tgts)
         preds = np.vstack(preds)
+        raw_preds = np.vstack(raw_preds)
         metrics["macro_f1"] = f1_score(tgts, preds, average="macro")
         metrics["micro_f1"] = f1_score(tgts, preds, average="micro")
     else:
@@ -227,9 +230,9 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
         if output_gates:
             all_gates = np.vstack(all_gates)
             print("gates: ", all_gates.shape)
-            store_preds_to_disk(tgts, preds, args, all_gates)
+            store_preds_to_disk(tgts, preds, args, gates=all_gates)
         else:
-            store_preds_to_disk(tgts, preds, args)
+            store_preds_to_disk(tgts, preds, args, preds_raw=raw_preds)
 
     return metrics
 
@@ -406,6 +409,36 @@ def train(args):
         np.inf, test_loader, model, args, criterion, store_preds=True, output_gates=args.output_gates
     )
     log_metrics(f"Test - ", test_metrics, args, logger)
+    
+
+def test(args):
+
+    set_seed(args.seed)
+    args.savedir = os.path.join(args.savedir, args.name)
+
+    _, _, test_loader = get_data_loaders(args)
+    
+    if args.trained_model_dir: # load in fine-tuned (with cloze-style LM objective) model
+        args.previous_state_dict_dir = os.path.join(args.trained_model_dir, WEIGHTS_NAME)
+
+    if args.model in ["vilbert", "mmvilbt"]:
+        config = BertConfig.from_json_file(args.config_file)
+        model = get_model(args, config)
+    else:
+        model = get_model(args)
+
+    criterion = get_criterion(args)
+    optimizer = get_optimizer(model, args)
+    scheduler = get_scheduler(optimizer, args)
+
+    model.cuda()
+
+    load_checkpoint(model, os.path.join(args.savedir, "model_best.pt"))
+    model.eval()
+
+    test_metrics = model_eval(
+        np.inf, test_loader, model, args, criterion, store_preds=True, output_gates=args.output_gates
+    )
 
 
 def cli_main():
