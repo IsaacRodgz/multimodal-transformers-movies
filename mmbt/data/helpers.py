@@ -59,7 +59,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3", "mmvilbt"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -139,7 +139,7 @@ def get_data_loaders(args):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3", "mmvilbt"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )

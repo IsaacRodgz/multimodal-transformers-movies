@@ -20,6 +20,7 @@ from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
 from mmbt.models.mmbt_rating import MultimodalBertRatingClf
+from mmbt.models.mmbt_rating_text import MultimodalBertRatingTextClf
 from mmbt.models.mmtr_rating import MMTransformerRatingClf
 
 
@@ -33,11 +34,12 @@ MODELS = {
     "img": ImageClf,
     "mmbt": MultimodalBertClf,
     "mmbt3": MultimodalBertThreeClf,
-    "mmtr": MMTransformerUniBi,
+    "mmtr": MMTransformerUniClf,
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
     "vilbert": VILBertForVLTasks,
     "mmbtrating": MultimodalBertRatingClf,
+    "mmbtratingtext": MultimodalBertRatingTextClf,
     "mmtrrating": MMTransformerRatingClf,
 }
 
