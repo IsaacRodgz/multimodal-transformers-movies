@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from transformers import BertModel as huggingBertModel
 from transformers import BertTokenizer as huggingBertTokenizer
 from pytorch_pretrained_bert.modeling import BertModel
+from mmbt.models.transformer import TransformerEncoder
 from collections import OrderedDict
 import math
 
@@ -321,8 +322,57 @@ class BertEncoderHierarchicalOverlap(nn.Module):
             )
         
         return self.pooler(encoded_layers[-1])
-    
-    
+
+
+class TransEncoderHierarchical(nn.Module):
+    def __init__(self, args):
+        super(TransEncoderHierarchical, self).__init__()
+        self.args = args
+        
+        self.bert = huggingBertModel.from_pretrained(args.bert_model)
+        self.trans_l_mem = TransformerEncoder(embed_dim=768,
+                                  num_heads=self.args.num_heads,
+                                  layers=self.args.layers,
+                                  attn_dropout=self.args.attn_dropout,
+                                  relu_dropout=self.args.relu_dropout,
+                                  res_dropout=self.args.res_dropout,
+                                  embed_dropout=self.args.embed_dropout,
+                                  attn_mask=self.args.attn_mask)
+
+    def forward(self, input_txt, attention_mask, segment, input_img):
+        
+        bsz = input_txt.size(0)
+        chunk_tokens = []
+        num_steps = input_txt.size(1)//self.args.chunk_size + (input_txt.size(1)//self.args.chunk_size != 0)
+        
+        for i in range(min(60, num_steps)):
+            cls_id = torch.LongTensor([self.args.vocab.stoi["[CLS]"]]).cuda()
+            cls_id = cls_id.unsqueeze(0).expand(bsz, 1)
+
+            sep_id = torch.LongTensor([self.args.vocab.stoi["[SEP]"]]).cuda()
+            sep_id = sep_id.unsqueeze(0).expand(bsz, 1)
+
+            start_idx = i*self.args.chunk_size
+            end_idx = (i+1)*self.args.chunk_size
+            
+            token_chunk_embeddings = torch.cat(
+                [cls_id, input_txt[:, start_idx:end_idx], sep_id], dim=1
+            )
+        
+            out = self.bert(token_chunk_embeddings)[1]
+            chunk_tokens.append(out)
+            
+        txt_embed = torch.stack(chunk_tokens, dim=1)
+        
+        txt_embed = txt_embed.permute(1, 0, 2)
+
+        h_ls = self.trans_l_mem(txt_embed)
+        if type(h_ls) == tuple:
+            h_ls = h_ls[0]
+        
+        return h_ls[-1]
+
+
 def gelu(x):
     """Implementation of the gelu activation function.
         For information: OpenAI GPT's gelu is slightly different (and gives slightly different results):
@@ -383,8 +433,9 @@ class MultimodalBertRatingTextClf(nn.Module):
         self.args = args
         #self.enc = MultimodalBertEncoder(args)
         #self.enc = BertEncoder(args)
-        self.enc = BertEncoderHierarchical(args)
+        #self.enc = BertEncoderHierarchical(args)
         #self.enc = BertEncoderHierarchicalOverlap(args)
+        self.enc = TransEncoderHierarchical(args)
         #self.clf = nn.Linear(args.hidden_sz+len(args.genres), args.n_classes)
         #self.clf = SimpleClassifier(args.hidden_sz+len(args.genres), args.hidden_sz+len(args.genres), args.n_classes, 0.)
         #self.clf = nn.Linear(args.hidden_sz, args.n_classes)
