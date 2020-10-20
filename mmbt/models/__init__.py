@@ -13,6 +13,7 @@ from mmbt.models.concat_bert import MultimodalConcatBertClf
 from mmbt.models.concat_bow import  MultimodalConcatBowClf, MultimodalConcatBow16Clf, MLPGenreClf
 from mmbt.models.image import ImageClf
 from mmbt.models.mmbt import MultimodalBertClf
+from mmbt.models.mmbtadapter import MultimodalBertAdapterClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
 from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi
@@ -33,6 +34,7 @@ MODELS = {
     "concatbert": MultimodalConcatBertClf,
     "img": ImageClf,
     "mmbt": MultimodalBertClf,
+    "mmbtadapter": MultimodalBertAdapterClf,
     "mmbt3": MultimodalBertThreeClf,
     "mmtr": MMTransformerUniClf,
     "mmbtp": MultimodalBertTransfClf,

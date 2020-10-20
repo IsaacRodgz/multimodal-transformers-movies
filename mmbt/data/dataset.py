@@ -97,7 +97,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -155,7 +155,7 @@ class JsonlDataset(Dataset):
             genres = torch.zeros(len(self.args.genres))
             genres[[self.args.genres.index(tgt) for tgt in self.data[index]["genre"]]] = 1
                             
-        if self.args.model == "mmbt":
+        if self.args.model in ["mmbt", "mmbtadapter"]:
             # The first SEP is part of Image Token.
             segment = segment[1:]
             sentence = sentence[1:]

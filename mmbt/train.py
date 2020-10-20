@@ -32,7 +32,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 
 def get_args(parser):
@@ -56,7 +56,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -100,6 +100,9 @@ def get_args(parser):
     parser.add_argument("--from_pretrained", type=str, default=expanduser("~")+"/vilbert-multi-task/save/multi_task_model.bin")
     parser.add_argument("--config_file", type=str, default=expanduser("~")+"/vilbert-multi-task/config/bert_base_6layer_6conect.json")
     parser.add_argument("--vision_scratch", action="store_true", help="whether pre-trained the image or not.")
+    
+    '''Adapter BERT parameters'''
+    parser.add_argument('--adapter_size', type=int, default=64, help='Dimension of Adapter (Num of units in bottleneck)')
 
 def get_criterion(args):
     if args.task_type == "multilabel":
@@ -140,6 +143,46 @@ def get_optimizer(model, args):
             warmup=args.warmup,
             t_total=total_steps,
         )
+    elif args.model == "mmbtadapter":
+        '''
+        total_steps = (
+            args.train_data_len
+            / args.batch_sz
+            / args.gradient_accumulation_steps
+            * args.max_epochs
+        )
+        '''
+        param_optimizer = np.array(list(model.named_parameters()))
+        zero_grad_mask = []
+    
+        for x in param_optimizer:
+            name = x[0].lower()
+            if 'adapter' in name:
+                zero_grad_mask.append(False)
+            elif 'classifier' in name:
+                zero_grad_mask.append(False)
+            elif 'cls' in name:
+                zero_grad_mask.append(False)
+            else:
+                zero_grad_mask.append(True)
+
+        zero_grad_mask = np.array(zero_grad_mask)
+
+        param_optimizer = param_optimizer[~zero_grad_mask]
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        ]
+        '''
+        optimizer = BertAdam(
+            optimizer_grouped_parameters,
+            lr=args.lr,
+            warmup=args.warmup,
+            t_total=total_steps,
+        )
+        '''
+        optimizer = optim.Adam(optimizer_grouped_parameters, lr=args.lr)
     elif args.model in ["vilbert", "mmvilbt"]:
         total_steps = (
             args.train_data_len
@@ -283,6 +326,9 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     elif args.model in ["vilbert", "mmvilbt"]:
         txt, img = txt.cuda(), img.cuda()
         out = model(txt, img)
+    elif args.model == "mmbtadapter":
+        txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
+        out = model(txt, mask, segment)
     else:
         assert args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3", "mmbtrating"]
         for param in model.enc.img_encoder.parameters():
