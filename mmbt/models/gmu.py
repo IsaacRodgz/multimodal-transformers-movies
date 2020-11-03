@@ -22,7 +22,7 @@ class GatedMultimodalLayer(nn.Module):
         
         self.hidden1 = nn.Linear(size_in1, size_out, bias=False)
         self.hidden2 = nn.Linear(size_in2, size_out, bias=False)
-        self.hidden_sigmoid = nn.Linear(size_out*2, 1, bias=False)
+        self.hidden_sigmoid = nn.Linear(size_in1+size_in2, size_out, bias=False)
 
         # Activation functions
         self.tanh_f = nn.Tanh()
@@ -34,7 +34,7 @@ class GatedMultimodalLayer(nn.Module):
         x = torch.cat((h1, h2), dim=1)
         z = self.sigmoid_f(self.hidden_sigmoid(x))
 
-        return z.view(z.size()[0],1)*h1 + (1-z).view(z.size()[0],1)*h2
+        return z*h1 + (1-z)*h2
     
     
 class MaxOut(nn.Module):
@@ -80,7 +80,7 @@ class MLPGenreClassifierModel(nn.Module):
         if feature_images is None:
             x = input_ids
         else:
-            x = torch.cat((input_ids, feature_images), dim=1)
+            x = torch.cat([input_ids, feature_images], dim=1)
         x = self.bn1(x)
         x = self.linear1(x)
         x = self.drop1(x)

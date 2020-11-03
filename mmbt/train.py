@@ -32,7 +32,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
 
 def get_args(parser):
@@ -291,6 +291,8 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
 
     freeze_img = i_epoch < args.freeze_img
     freeze_txt = i_epoch < args.freeze_txt
+    
+    device = next(model.parameters()).device
 
     if args.model == "bow":
         txt = txt.cuda()
@@ -299,10 +301,10 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         img = img.cuda()
         out = model(img)
     elif args.model in ["concatbow", "concatbow16", "gmu"]:
-        txt, img = txt.cuda(), img.cuda()
+        txt, img = txt.to(device), img.to(device)
         out = model(txt, img)
     elif args.model == "bert":
-        txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
+        txt, mask, segment = txt.to(device), mask.to(device), segment.to(device)
         out = model(txt, mask, segment)
     elif args.model in ["mmbtratingtext"]:
         txt = txt.cuda()
@@ -349,7 +351,7 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
             else:
                 out = model(txt, mask, segment, img)
 
-    tgt = tgt.cuda()
+    tgt = tgt.to(device)
     loss = criterion(out, tgt)
     
     if gmu_gate:
@@ -374,6 +376,10 @@ def train(args):
         model = get_model(args, config)
     else:
         model = get_model(args)
+        
+    cuda_len = torch.cuda.device_count()
+    if cuda_len > 1:
+        model = nn.DataParallel(model)
 
     criterion = get_criterion(args)
     optimizer = get_optimizer(model, args)
