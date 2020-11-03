@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from mmbt.models.image import ImageEncoder
 from pytorch_pretrained_bert.modeling import BertModel
+from transformers import BertModel as huggingBertModel
 from mmbt.models.transformer import TransformerEncoder
 
 
@@ -10,14 +11,13 @@ class BertEncoder(nn.Module):
     def __init__(self, args):
         super(BertEncoder, self).__init__()
         self.args = args
-        self.bert = BertModel.from_pretrained(args.bert_model)
+        self.bert = huggingBertModel.from_pretrained(args.bert_model)
 
     def forward(self, txt, mask, segment):
         encoded_layers, out = self.bert(
             txt,
             token_type_ids=segment,
             attention_mask=mask,
-            output_all_encoded_layers=False,
         )
         return encoded_layers
 

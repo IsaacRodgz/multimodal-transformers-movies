@@ -131,7 +131,7 @@ def collate_fn(batch, args):
         return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, genres
 
 
-def get_data_loaders(args):
+def get_data_loaders(args, data_all=None, partition_index=None):
     '''
     tokenizer = (
         BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
@@ -164,57 +164,135 @@ def get_data_loaders(args):
     args.vocab = vocab
     args.vocab_sz = vocab.vocab_sz
     args.n_classes = len(args.labels)
+    
+    if args.train_type == "split":
 
-    train = JsonlDataset(
-        os.path.join(args.data_path, args.task, "train.jsonl"),
-        tokenizer,
-        transforms,
-        vocab,
-        args,
-    )
+        train = JsonlDataset(
+            os.path.join(args.data_path, args.task, "train.jsonl"),
+            tokenizer,
+            transforms,
+            vocab,
+            args,
+        )
 
-    args.train_data_len = len(train)
+        args.train_data_len = len(train)
 
-    dev = JsonlDataset(
-        os.path.join(args.data_path, args.task, "dev.jsonl"),
-        tokenizer,
-        transforms,
-        vocab,
-        args,
-    )
+        dev = JsonlDataset(
+            os.path.join(args.data_path, args.task, "dev.jsonl"),
+            tokenizer,
+            transforms,
+            vocab,
+            args,
+        )
 
-    collate = functools.partial(collate_fn, args=args)
+        collate = functools.partial(collate_fn, args=args)
 
-    train_loader = DataLoader(
-        train,
-        batch_size=args.batch_sz,
-        shuffle=True,
-        num_workers=args.n_workers,
-        collate_fn=collate,
-    )
+        train_loader = DataLoader(
+            train,
+            batch_size=args.batch_sz,
+            shuffle=True,
+            num_workers=args.n_workers,
+            collate_fn=collate,
+            drop_last=True,
+        )
 
-    val_loader = DataLoader(
-        dev,
-        batch_size=args.batch_sz,
-        shuffle=False,
-        num_workers=args.n_workers,
-        collate_fn=collate,
-    )
+        val_loader = DataLoader(
+            dev,
+            batch_size=args.batch_sz,
+            shuffle=False,
+            num_workers=args.n_workers,
+            collate_fn=collate,
+        )
 
-    test_set = JsonlDataset(
-        os.path.join(args.data_path, args.task, "test.jsonl"),
-        tokenizer,
-        transforms,
-        vocab,
-        args,
-    )
+        test_set = JsonlDataset(
+            os.path.join(args.data_path, args.task, "test.jsonl"),
+            tokenizer,
+            transforms,
+            vocab,
+            args,
+        )
 
-    test_loader = DataLoader(
-        test_set,
-        batch_size=args.batch_sz,
-        shuffle=False,
-        num_workers=args.n_workers,
-        collate_fn=collate,
-    )
+        test_loader = DataLoader(
+            test_set,
+            batch_size=args.batch_sz,
+            shuffle=False,
+            num_workers=args.n_workers,
+            collate_fn=collate,
+        )
 
-    return train_loader, val_loader, test_loader
+        return train_loader, val_loader, test_loader
+    
+    else:
+        #import pdb; pdb.set_trace()
+        dev_size = int(len(data_all)*0.2)
+        train_size = len(data_all)-dev_size
+        k = partition_index
+        dev_start = k*dev_size
+        dev_end = (k+1)*dev_size
+        
+        if k == 0:
+            train_data = data_all[dev_end:]
+        elif k == 9:
+            train_data = data_all[:dev_start]
+        else:
+            train_data = data_all[:dev_start] + data_all[dev_end:]
+        dev_data = data_all[dev_start:dev_end]
+        
+        test_size = int(len(train_data)*0.1)
+        
+        train = JsonlDataset(
+            os.path.join(args.data_path, args.task, "train.jsonl"),
+            tokenizer,
+            transforms,
+            vocab,
+            args,
+            train_data[test_size:],
+        )
+
+        args.train_data_len = len(train)
+
+        dev = JsonlDataset(
+            os.path.join(args.data_path, args.task, "dev.jsonl"),
+            tokenizer,
+            transforms,
+            vocab,
+            args,
+            dev_data,
+        )
+
+        collate = functools.partial(collate_fn, args=args)
+
+        train_loader = DataLoader(
+            train,
+            batch_size=args.batch_sz,
+            shuffle=True,
+            num_workers=args.n_workers,
+            collate_fn=collate,
+        )
+
+        val_loader = DataLoader(
+            dev,
+            batch_size=args.batch_sz,
+            shuffle=False,
+            num_workers=args.n_workers,
+            collate_fn=collate,
+        )
+        
+        test_set = JsonlDataset(
+            os.path.join(args.data_path, args.task, "test.jsonl"),
+            tokenizer,
+            transforms,
+            vocab,
+            args,
+            train_data[:test_size],
+        )
+
+        test_loader = DataLoader(
+            test_set,
+            batch_size=args.batch_sz,
+            shuffle=False,
+            num_workers=args.n_workers,
+            collate_fn=collate,
+        )
+        
+        return train_loader, test_loader, val_loader

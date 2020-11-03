@@ -21,21 +21,17 @@ from mmbt.utils.utils import truncate_seq_pair, numpy_seed
 
 
 class JsonlDataset(Dataset):
-    def __init__(self, data_path, tokenizer, transforms_, vocab, args):
-        self.data = [json.loads(l) for l in open(data_path)]
+    def __init__(self, data_path, tokenizer, transforms_, vocab, args, data_dict=None):
+        if data_dict is not None:
+            self.data = data_dict
+        else:
+            self.data = [json.loads(l) for l in open(data_path)]
         self.data_dir = os.path.dirname(data_path)
         self.tokenizer = tokenizer
         self.args = args
         self.vocab = vocab
         self.n_classes = len(args.labels)
         self.text_start_token = ["[CLS]"] if args.model != "mmbt" else ["[SEP]"]
-    
-        '''
-        with numpy_seed(0):
-            for row in self.data:
-                if np.random.random() < args.drop_img_percent:
-                    row["img"] = None
-        '''
 
         self.max_seq_len = args.max_seq_len
         if args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]:
@@ -116,6 +112,9 @@ class JsonlDataset(Dataset):
             #'''
             # Original
             if self.data[index]["img"]:
+                if self.args.task == "handwritten":
+                    self.data[index]["img"] = "HWxPI-Track-ICPR2018/"+"/".join(self.data[index]["img"].split("/")[1:])
+                    
                 image = Image.open(
                     os.path.join(self.data_dir, self.data[index]["img"])
                 ).convert("RGB")

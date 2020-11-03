@@ -9,8 +9,11 @@
 
 
 import argparse
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import f1_score, accuracy_score, roc_auc_score
 from tqdm import tqdm
+import json
+from random import shuffle
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -32,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
 
 
 def get_args(parser):
@@ -64,13 +67,14 @@ def get_args(parser):
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--savedir", type=str, default="/path/to/save_dir/")
     parser.add_argument("--seed", type=int, default=123)
-    parser.add_argument("--task", type=str, default="mmimdb", choices=["mmimdb", "vsnli", "food101", "mpaa"])
+    parser.add_argument("--task", type=str, default="mmimdb", choices=["mmimdb", "vsnli", "food101", "mpaa", "handwritten"])
     parser.add_argument("--task_type", type=str, default="multilabel", choices=["multilabel", "classification"])
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
     parser.add_argument('--output_gates', action='store_true', help='Store GMU gates of test dataset to a file (default: false)')
     parser.add_argument("--pooling", type=str, default="cls", choices=["cls", "att", "cls_att", "vert_att"], help='Type of pooling technique for BERT models')
     parser.add_argument("--chunk_size", type=int, default=100)
+    parser.add_argument("--train_type", type=str, default="split", choices=["split", "cross"], help='Use train-val-test splits or perform cross-validation')
     
     '''AdaptaBERT parameter'''
     parser.add_argument("--trained_model_dir",
@@ -264,6 +268,7 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
         raw_preds = np.vstack(raw_preds)
         metrics["macro_f1"] = f1_score(tgts, preds, average="macro")
         metrics["micro_f1"] = f1_score(tgts, preds, average="micro")
+        metrics["roc_auc_macro"] = roc_auc_score(tgts, raw_preds, average="macro")
     else:
         tgts = [l for sl in tgts for l in sl]
         preds = [l for sl in preds for l in sl]
@@ -435,7 +440,7 @@ def train(args):
         log_metrics("Val", metrics, args, logger)
 
         tuning_metric = (
-            metrics["micro_f1"] if args.task_type == "multilabel" else metrics["wighted_f1"]
+            metrics["roc_auc_macro"] if args.task_type == "multilabel" else metrics["wighted_f1"]
         )
         scheduler.step(tuning_metric)
         is_improvement = tuning_metric > best_metric
@@ -499,6 +504,104 @@ def test(args):
     test_metrics = model_eval(
         np.inf, test_loader, model, args, criterion, store_preds=True, output_gates=args.output_gates
     )
+    
+    
+def cross_validation_train(args):
+    
+    set_seed(args.seed)
+    args.savedir = os.path.join(args.savedir, args.name)
+    os.makedirs(args.savedir, exist_ok=True)
+    
+    data_train = [json.loads(l) for l in open(os.path.join(args.data_path, args.task, "train.jsonl"))]
+    data_dev = [json.loads(l) for l in open(os.path.join(args.data_path, args.task, "dev.jsonl"))]
+    data_test = [json.loads(l) for l in open(os.path.join(args.data_path, args.task, "test.jsonl"))]
+    data_all = data_train+data_dev+data_test
+    shuffle(data_all)
+    
+    metrics_fold = []
+    logger = create_logger("%s/logfile.log" % args.savedir, args)
+    torch.save(args, os.path.join(args.savedir, "args.pt"))
+        
+    for k in range(10):
+
+        train_loader, val_loader, test_loader = get_data_loaders(args, data_all, k)
+        model = get_model(args)
+        
+        cuda_len = torch.cuda.device_count()
+        if cuda_len > 1:
+            model = nn.DataParallel(model)
+
+        criterion = get_criterion(args)
+        optimizer = get_optimizer(model, args)
+        scheduler = get_scheduler(optimizer, args)
+
+        logger.info(model)
+        model.cuda()
+        
+        start_epoch, global_step, n_no_improve, best_metric = 0, 0, 0, -np.inf
+        
+        logger.info(f"Training {k} fold...")
+        for i_epoch in range(start_epoch, args.max_epochs):
+            train_losses = []
+            model.train()
+            optimizer.zero_grad()
+
+            for batch in tqdm(train_loader, total=len(train_loader)):
+                loss, _, _ = model_forward(i_epoch, model, args, criterion, batch)
+                if args.gradient_accumulation_steps > 1:
+                    loss = loss / args.gradient_accumulation_steps
+
+                train_losses.append(loss.item())
+                loss.backward()
+                global_step += 1
+                if global_step % args.gradient_accumulation_steps == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+            model.eval()
+            metrics = model_eval(i_epoch, val_loader, model, args, criterion)
+            logger.info("Train Loss: {:.4f}".format(np.mean(train_losses)))
+            log_metrics(f"Val ", metrics, args, logger)
+
+            tuning_metric = (
+                metrics["roc_auc_macro"] if args.task_type == "multilabel" else metrics["wighted_f1"]
+            )
+            scheduler.step(tuning_metric)
+            is_improvement = tuning_metric > best_metric
+            if is_improvement:
+                best_metric = tuning_metric
+                n_no_improve = 0
+            else:
+                n_no_improve += 1
+
+            save_checkpoint(
+                {
+                    "epoch": i_epoch + 1,
+                    "state_dict": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "scheduler": scheduler.state_dict(),
+                    "n_no_improve": n_no_improve,
+                    "best_metric": best_metric,
+                },
+                is_improvement,
+                args.savedir,
+            )
+
+            if n_no_improve >= args.patience:
+                logger.info("No improvement. Breaking out of loop.")
+                break
+
+        load_checkpoint(model, os.path.join(args.savedir, "model_best.pt"))
+        model.eval()
+
+        test_metrics = model_eval(
+            np.inf, test_loader, model, args, criterion, store_preds=True, output_gates=args.output_gates
+        )
+        metrics_fold.append(test_metrics['roc_auc_macro'])
+        log_metrics(f"Test {k} fold - ", test_metrics, args, logger)
+    
+        os.remove(os.path.join(args.savedir, "model_best.pt"))
+    logger.info(f"Cross validation score: {np.mean(metrics_fold)}")
 
 
 def cli_main():
@@ -506,7 +609,10 @@ def cli_main():
     get_args(parser)
     args, remaining_args = parser.parse_known_args()
     assert remaining_args == [], remaining_args
-    train(args)
+    if args.train_type == "split":
+        train(args)
+    else:
+        cross_validation_train(args)
 
 
 if __name__ == "__main__":
