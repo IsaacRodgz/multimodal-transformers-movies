@@ -323,6 +323,74 @@ class BertEncoderHierarchicalOverlap(nn.Module):
         
         return self.pooler(encoded_layers[-1])
 
+    
+class TransEncoderHierarchicalPrev(nn.Module):
+    def __init__(self, args):
+        super(TransEncoderHierarchicalPrev, self).__init__()
+        self.args = args
+        
+        self.bert = huggingBertModel.from_pretrained(args.bert_model)
+        self.trans_l_mem = TransformerEncoder(embed_dim=768,
+                                  num_heads=self.args.num_heads,
+                                  layers=self.args.layers,
+                                  attn_dropout=self.args.attn_dropout,
+                                  relu_dropout=self.args.relu_dropout,
+                                  res_dropout=self.args.res_dropout,
+                                  embed_dropout=self.args.embed_dropout,
+                                  attn_mask=self.args.attn_mask)
+
+    def forward(self, input_txt, attention_mask, segment):
+        
+        bsz = input_txt.size(0)
+        chunk_tokens = []
+        num_steps = input_txt.size(1)//self.args.chunk_size + (input_txt.size(1)//self.args.chunk_size != 0)
+        
+        cls_id = torch.LongTensor([self.args.vocab.stoi["[CLS]"]]).cuda()
+        cls_id = cls_id.unsqueeze(0).expand(bsz, 1)
+        cls_id = self.bert.embeddings(cls_id)
+        
+        for i in range(min(30, num_steps)):
+            
+            sep_id = torch.LongTensor([self.args.vocab.stoi["[SEP]"]]).cuda()
+            sep_id = sep_id.unsqueeze(0).expand(bsz, 1)
+            sep_id = self.bert.embeddings(sep_id)
+
+            start_idx = i*self.args.chunk_size
+            end_idx = (i+1)*self.args.chunk_size
+            
+            txt_chunk = self.bert.embeddings(input_txt[:, start_idx:end_idx])
+                        
+            token_chunk_embeddings = torch.cat(
+                [cls_id, txt_chunk, sep_id], dim=1
+            )
+            
+            input_shape = token_chunk_embeddings.size()[:-1]
+            device = token_chunk_embeddings.device
+            attention_mask = torch.ones(input_shape, device=device)
+            extended_attention_mask: torch.Tensor = self.bert.get_extended_attention_mask(attention_mask, input_shape, device)
+            encoder_extended_attention_mask = None
+            head_mask = self.bert.get_head_mask(None, self.bert.config.num_hidden_layers)
+        
+            encoder_outputs = self.bert.encoder(token_chunk_embeddings,
+                                                  attention_mask=extended_attention_mask,
+                                                  head_mask=head_mask)
+            sequence_output = encoder_outputs[0]
+            pooled_output = self.bert.pooler(sequence_output)
+            chunk_tokens.append(pooled_output)
+            cls_id = sequence_output[:, 0]
+            cls_id = cls_id.type(sep_id.type())
+            cls_id = cls_id.unsqueeze(1)
+            
+        txt_embed = torch.stack(chunk_tokens, dim=1)
+        
+        txt_embed = txt_embed.permute(1, 0, 2)
+
+        h_ls = self.trans_l_mem(txt_embed)
+        if type(h_ls) == tuple:
+            h_ls = h_ls[0]
+        
+        return h_ls[-1]
+    
 
 class TransEncoderHierarchical(nn.Module):
     def __init__(self, args):
@@ -339,13 +407,13 @@ class TransEncoderHierarchical(nn.Module):
                                   embed_dropout=self.args.embed_dropout,
                                   attn_mask=self.args.attn_mask)
 
-    def forward(self, input_txt, attention_mask, segment, input_img):
+    def forward(self, input_txt, attention_mask, segment):
         
         bsz = input_txt.size(0)
         chunk_tokens = []
         num_steps = input_txt.size(1)//self.args.chunk_size + (input_txt.size(1)//self.args.chunk_size != 0)
         
-        for i in range(min(60, num_steps)):
+        for i in range(min(30, num_steps)):
             cls_id = torch.LongTensor([self.args.vocab.stoi["[CLS]"]]).cuda()
             cls_id = cls_id.unsqueeze(0).expand(bsz, 1)
 
@@ -435,13 +503,13 @@ class MultimodalBertRatingTextClf(nn.Module):
         #self.enc = BertEncoder(args)
         #self.enc = BertEncoderHierarchical(args)
         #self.enc = BertEncoderHierarchicalOverlap(args)
-        self.enc = TransEncoderHierarchical(args)
+        self.enc = TransEncoderHierarchicalPrev(args)
         #self.clf = nn.Linear(args.hidden_sz+len(args.genres), args.n_classes)
         #self.clf = SimpleClassifier(args.hidden_sz+len(args.genres), args.hidden_sz+len(args.genres), args.n_classes, 0.)
         #self.clf = nn.Linear(args.hidden_sz, args.n_classes)
-        self.clf = SimpleClassifier(args.hidden_sz, args.hidden_sz, args.n_classes, 0.0)
+        self.clf = SimpleClassifier(args.hidden_sz, args.hidden_sz, args.n_classes, 0.3)
 
     def forward(self, txt, mask, segment, img, genres):
-        x = self.enc(txt, mask, segment, img)
+        x = self.enc(txt, mask, segment)
         #input_cls = torch.cat((x, genres), dim=1)
         return self.clf(x)
