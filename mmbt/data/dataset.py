@@ -13,6 +13,7 @@ import os
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 import torchvision.transforms as transforms
+import pickle
 
 import torch
 from torch.utils.data import Dataset
@@ -57,6 +58,12 @@ class JsonlDataset(Dataset):
         if self.args.task == "mpaa":
             sentence = self.tokenizer(self.data[index]["script"])
             segment = torch.zeros(len(sentence))
+        elif self.args.task == "moviescope":
+            sentence = (
+                self.text_start_token
+                + self.tokenizer(self.data[index]["synopsis"])[:(self.args.max_seq_len - 1)]
+            )
+            segment = torch.zeros(len(sentence))
         elif self.args.task == "vsnli":
             sent1 = self.tokenizer(self.data[index]["sentence1"])
             sent2 = self.tokenizer(self.data[index]["sentence2"])
@@ -93,7 +100,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -109,46 +116,57 @@ class JsonlDataset(Dataset):
                 image = 128*torch.ones([self.args.num_image_embeds,4096])
             #image = self.transforms(image)
             '''
-            #'''
-            # Original
-            if self.data[index]["img"]:
-                if self.args.task == "handwritten":
-                    self.data[index]["img"] = "HWxPI-Track-ICPR2018/"+"/".join(self.data[index]["img"].split("/")[1:])
-                    
-                image = Image.open(
-                    os.path.join(self.data_dir, self.data[index]["img"])
-                ).convert("RGB")
-            else:
-                image = Image.fromarray(128 * np.ones((256, 256, 3), dtype=np.uint8))
-            
-            if self.args.model != "vilbert":
-                image = self.transforms(image)
-            else:
-                image = self.vilbert_transforms(image)
-            #'''
-            '''
-            # Extracted image regions from Faster R-CNN
-            if self.data[index]["img"]:
-                full_path = os.path.join(self.data_dir, 'dataset_img_raw/'+self.data[index]['img'].split('/')[-1].replace('.jpeg', '.npz'))
-                m = np.load(full_path)
+            if self.args.task == "moviescope":
+                file = open(os.path.join(self.data_dir, '200F_VGG16', f'{str(self.data[index]["id"])}.p'), 'rb')
+                data = pickle.load(file, encoding='bytes')
+                image = torch.from_numpy(data).squeeze(0)
                 
-                regions_list = []
-                for arr_name in m.files:
-                    region = Image.fromarray(m[arr_name].astype('uint8'), 'RGB')
-                    region = self.transforms(region)
-                    regions_list.append(region)
-                    
-                seq_len = len(regions_list)
-                if seq_len > self.args.num_images:
-                    regions_list = regions_list[:self.args.num_images]
-                elif seq_len < self.args.num_images:
-                    num_missing = self.args.num_images - seq_len
-                    
-                    for i in range(num_missing):
-                        regions_list.append(128*torch.ones([3,224,224]))
-                    
-                image = torch.stack(regions_list, dim=0)
-            '''
+                plot = None
+                if self.args.model in ["mmtrvpp"]:
+                    file = open(os.path.join(self.data_dir, 'PosterFeatures', f'{str(self.data[index]["id"])}.p'), 'rb')
+                    data = pickle.load(file, encoding='bytes')
+                    plot = torch.from_numpy(data).squeeze(0)
+            else:
+                #'''
+                # Original
+                if self.data[index]["img"]:
+                    if self.args.task == "handwritten":
+                        self.data[index]["img"] = "HWxPI-Track-ICPR2018/"+"/".join(self.data[index]["img"].split("/")[1:])
+
+                    image = Image.open(
+                        os.path.join(self.data_dir, self.data[index]["img"])
+                    ).convert("RGB")
+                else:
+                    image = Image.fromarray(128 * np.ones((256, 256, 3), dtype=np.uint8))
+
+                if self.args.model != "vilbert":
+                    image = self.transforms(image)
+                else:
+                    image = self.vilbert_transforms(image)
+                #'''
+                '''
+                # Extracted image regions from Faster R-CNN
+                if self.data[index]["img"]:
+                    full_path = os.path.join(self.data_dir, 'dataset_img_raw/'+self.data[index]['img'].split('/')[-1].replace('.jpeg', '.npz'))
+                    m = np.load(full_path)
+
+                    regions_list = []
+                    for arr_name in m.files:
+                        region = Image.fromarray(m[arr_name].astype('uint8'), 'RGB')
+                        region = self.transforms(region)
+                        regions_list.append(region)
+
+                    seq_len = len(regions_list)
+                    if seq_len > self.args.num_images:
+                        regions_list = regions_list[:self.args.num_images]
+                    elif seq_len < self.args.num_images:
+                        num_missing = self.args.num_images - seq_len
+
+                        for i in range(num_missing):
+                            regions_list.append(128*torch.ones([3,224,224]))
+
+                    image = torch.stack(regions_list, dim=0)
+                '''
             
         if self.args.task == "mpaa":
             genres = torch.zeros(len(self.args.genres))
@@ -163,5 +181,7 @@ class JsonlDataset(Dataset):
 
         if self.args.task == "mpaa":
             return sentence, segment, image, label, genres
+        elif self.args.task == "moviescope":
+            return sentence, segment, image, label, plot
         else:
             return sentence, segment, image, label

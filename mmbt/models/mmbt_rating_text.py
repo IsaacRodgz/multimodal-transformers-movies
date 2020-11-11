@@ -153,7 +153,7 @@ class BertEncoder(nn.Module):
         
         self.bert = huggingBertModel.from_pretrained(args.bert_model)
 
-    def forward(self, input_txt, attention_mask, segment, input_img):
+    def forward(self, input_txt, attention_mask, segment):
         bsz = input_txt.size(0)
         
         #import pdb; pdb.set_trace()
@@ -460,7 +460,8 @@ class TransEncoderHierarchicalTrope(nn.Module):
         with open('centroids.npy', 'rb') as f:
             centroids_load = np.load(f)
             
-        self.tropes_centroids = torch.from_numpy(centroids_load).cuda().t()
+        #self.tropes_centroids = torch.nn.Parameter(torch.from_numpy(centroids_load), requires_grad=True).t().cuda()
+        self.tropes_centroids = torch.from_numpy(centroids_load).t().cuda()
 
     def forward(self, input_txt, attention_mask, segment):
         
@@ -557,18 +558,18 @@ class MultimodalBertRatingTextClf(nn.Module):
         super(MultimodalBertRatingTextClf, self).__init__()
         self.args = args
         #self.enc = MultimodalBertEncoder(args)
-        #self.enc = BertEncoder(args)
+        self.enc = BertEncoder(args)
         #self.enc = BertEncoderHierarchical(args)
         #self.enc = BertEncoderHierarchicalOverlap(args)
         #self.enc = TransEncoderHierarchicalPrev(args)
-        self.enc = TransEncoderHierarchicalTrope(args)
+        #self.enc = TransEncoderHierarchicalTrope(args)
         
         #self.clf = nn.Linear(args.hidden_sz+len(args.genres), args.n_classes)
         #self.clf = SimpleClassifier(args.hidden_sz+len(args.genres), args.hidden_sz+len(args.genres), args.n_classes, 0.)
         #self.clf = nn.Linear(args.hidden_sz, args.n_classes)
-        self.clf = SimpleClassifier(args.hidden_sz+500, args.hidden_sz, args.n_classes, 0.0)
+        self.clf = SimpleClassifier(args.hidden_sz, args.hidden_sz, args.n_classes, 0.0)
 
-    def forward(self, txt, mask, segment, img, genres):
+    def forward(self, txt, mask, segment, img, genres=None):
         x = self.enc(txt, mask, segment)
         #input_cls = torch.cat((x, genres), dim=1)
         return self.clf(x)

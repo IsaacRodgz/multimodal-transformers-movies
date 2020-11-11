@@ -59,7 +59,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrvpp", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -101,12 +101,16 @@ def collate_fn(batch, args):
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtadapter"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtadapter"]:
         img_tensor = torch.stack([row[2] for row in batch])
         
     genres = None
     if args.task == "mpaa":
         genres = torch.stack([row[4] for row in batch])
+        
+    plot = None
+    if args.task == "moviescope":
+        plot = torch.stack([row[4] for row in batch])
 
     if args.task_type == "multilabel":
         # Multilabel case
@@ -127,6 +131,8 @@ def collate_fn(batch, args):
     
     if args.model == "mmbt3":
         return text_tensor, segment_tensor, mask_tensor, mm_mask_tensor, img_tensor, tgt_tensor, genres
+    elif args.task == "moviescope":
+        return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, plot
     else:
         return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, genres
 
@@ -139,7 +145,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrvpp", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )

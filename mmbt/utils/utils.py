@@ -82,9 +82,10 @@ def store_preds_to_disk(tgts, preds, args, preds_raw=None, gates=None):
 
 def log_metrics(set_name, metrics, args, logger):
     if args.task_type == "multilabel":
+        
         logger.info(
-            "{}: Loss: {:.5f} | Macro F1 {:.5f} | Micro F1: {:.5f} | ROC AUC Macro: {:.5f}".format(
-                set_name, metrics["loss"], metrics["macro_f1"], metrics["micro_f1"], metrics["roc_auc_macro"]
+            "{}: Loss: {:.5f} | Macro F1 {:.5f} | Micro F1: {:.5f} | AUC PR Macro: {:.5f} | AUC PR Micro: {:.5f}".format(
+                set_name, metrics["loss"], metrics["macro_f1"], metrics["micro_f1"], metrics["auc_pr_macro"], metrics["auc_pr_micro"]
             )
         )
     else:

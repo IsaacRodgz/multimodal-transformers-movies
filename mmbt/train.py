@@ -9,7 +9,7 @@
 
 
 import argparse
-from sklearn.metrics import f1_score, accuracy_score, roc_auc_score
+from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, average_precision_score
 from tqdm import tqdm
 import json
 from random import shuffle
@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
 def get_args(parser):
@@ -59,7 +59,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrvpp", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -67,7 +67,7 @@ def get_args(parser):
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--savedir", type=str, default="/path/to/save_dir/")
     parser.add_argument("--seed", type=int, default=123)
-    parser.add_argument("--task", type=str, default="mmimdb", choices=["mmimdb", "vsnli", "food101", "mpaa", "handwritten"])
+    parser.add_argument("--task", type=str, default="mmimdb", choices=["mmimdb", "vsnli", "food101", "mpaa", "handwritten", "moviescope"])
     parser.add_argument("--task_type", type=str, default="multilabel", choices=["multilabel", "classification"])
     parser.add_argument("--warmup", type=float, default=0.1)
     parser.add_argument("--weight_classes", type=int, default=1)
@@ -268,7 +268,8 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
         raw_preds = np.vstack(raw_preds)
         metrics["macro_f1"] = f1_score(tgts, preds, average="macro")
         metrics["micro_f1"] = f1_score(tgts, preds, average="micro")
-        metrics["roc_auc_macro"] = roc_auc_score(tgts, raw_preds, average="macro")
+        metrics["auc_pr_macro"] = average_precision_score(tgts, raw_preds, average="macro")
+        metrics["auc_pr_micro"] = average_precision_score(tgts, raw_preds, average="micro")
     else:
         tgts = [l for sl in tgts for l in sl]
         preds = [l for sl in preds for l in sl]
@@ -291,6 +292,8 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     else:
         if args.task == "mpaa":
             txt, segment, mask, img, tgt, genres = batch
+        elif args.task == "moviescope":
+            txt, segment, mask, img, tgt, poster = batch
         else:
             txt, segment, mask, img, tgt, _ = batch
 
@@ -319,6 +322,11 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
             out = model(txt, mask, segment, img, genres)
         else:
             out = model(txt, mask, segment, img)
+    elif args.model in ["mmtrvpp"]:
+        txt, img = txt.cuda(), img.cuda()
+        mask, segment = mask.cuda(), segment.cuda()
+        poster = poster.cuda()
+        out = model(txt, mask, segment, img, poster)
     elif args.model in ["concatbert", "mmtr", "mmtrrating"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
@@ -440,7 +448,7 @@ def train(args):
         log_metrics("Val", metrics, args, logger)
 
         tuning_metric = (
-            metrics["roc_auc_macro"] if args.task_type == "multilabel" else metrics["wighted_f1"]
+            metrics["auc_pr_macro"] if args.task_type == "multilabel" else metrics["wighted_f1"]
         )
         scheduler.step(tuning_metric)
         is_improvement = tuning_metric > best_metric
