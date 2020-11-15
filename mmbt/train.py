@@ -279,7 +279,7 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
         if output_gates:
             all_gates = np.vstack(all_gates)
             print("gates: ", all_gates.shape)
-            store_preds_to_disk(tgts, preds, args, gates=all_gates)
+            store_preds_to_disk(tgts, preds, args, preds_raw=raw_preds, gates=all_gates)
         else:
             store_preds_to_disk(tgts, preds, args, preds_raw=raw_preds)
 
@@ -326,7 +326,10 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
         poster = poster.cuda()
-        out = model(txt, mask, segment, img, poster)
+        if gmu_gate:
+            out, gates = model(txt, mask, segment, img, poster, gmu_gate)
+        else:
+            out = model(txt, mask, segment, img, poster)
     elif args.model in ["concatbert", "mmtr", "mmtrrating"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
