@@ -16,7 +16,7 @@ from mmbt.models.mmbt import MultimodalBertClf
 from mmbt.models.mmbtadapter import MultimodalBertAdapterClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
-from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerMoviescope3Clf, MMTransformerGMUMoviescopeClf
+from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerMoviescope3Clf, MMTransformerGMUMoviescopeClf, MMTransformer3MClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
@@ -37,7 +37,8 @@ MODELS = {
     "mmbtadapter": MultimodalBertAdapterClf,
     "mmbt3": MultimodalBertThreeClf,
     "mmtr": TransformerVideoClf,
-    "mmtrvpp": MMTransformerGMUMoviescopeClf,
+    "mmtrvpp": MMTransformerGMUMoviescopeClf, # video-plot-poster
+    "mmtrvpa": MMTransformer3MClf, # video-plot-audio 
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
     "vilbert": VILBertForVLTasks,

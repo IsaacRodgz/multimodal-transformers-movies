@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 
 def get_args(parser):
@@ -59,7 +59,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrvpp", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -85,12 +85,16 @@ def get_args(parser):
     '''MMTransformer parameters'''
     parser.add_argument('--vonly', action='store_false', help='use the crossmodal fusion into v (default: False)')
     parser.add_argument('--lonly', action='store_false', help='use the crossmodal fusion into l (default: False)')
+    parser.add_argument('--aonly', action='store_false', help='use the crossmodal fusion into a (default: False)')
     parser.add_argument("--orig_d_v", type=int, default=2048)
     parser.add_argument("--orig_d_l", type=int, default=768)
+    parser.add_argument("--orig_d_a", type=int, default=96)
     parser.add_argument("--v_len", type=int, default=3)
     parser.add_argument("--l_len", type=int, default=512)
+    parser.add_argument("--a_len", type=int, default=3)
     parser.add_argument('--attn_dropout', type=float, default=0.1, help='attention dropout')
     parser.add_argument('--attn_dropout_v', type=float, default=0.0, help='attention dropout (for visual)')
+    parser.add_argument('--attn_dropout_a', type=float, default=0.0, help='attention dropout (for audio)')
     parser.add_argument('--relu_dropout', type=float, default=0.1, help='relu dropout')
     parser.add_argument('--embed_dropout', type=float, default=0.25, help='embedding dropout')
     parser.add_argument('--res_dropout', type=float, default=0.1, help='residual block dropout')
@@ -293,7 +297,10 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         if args.task == "mpaa":
             txt, segment, mask, img, tgt, genres = batch
         elif args.task == "moviescope":
-            txt, segment, mask, img, tgt, poster = batch
+            if args.model == "mmtrvpa":
+                txt, segment, mask, img, tgt, audio = batch
+            else:
+                txt, segment, mask, img, tgt, poster = batch
         else:
             txt, segment, mask, img, tgt, _ = batch
 
@@ -330,6 +337,10 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
             out, gates = model(txt, mask, segment, img, poster, gmu_gate)
         else:
             out = model(txt, mask, segment, img, poster)
+    elif args.model in ["mmtrvpa"]:
+        txt, img, audio = txt.cuda(), img.cuda(), audio.cuda()
+        mask, segment = mask.cuda(), segment.cuda()
+        out = model(txt, mask, segment, img, audio)
     elif args.model in ["concatbert", "mmtr", "mmtrrating"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
