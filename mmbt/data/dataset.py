@@ -170,9 +170,10 @@ class JsonlDataset(Dataset):
                 
         audio = None
         if self.args.model == "mmtrvpa":
-            file = open(os.path.join(self.data_dir, 'Melspectrogram', f'{str(self.data[index]["id"])}.p'), 'rb')
+            file = open(os.path.join(self.data_dir, 'MelgramPorcessed', f'{str(self.data[index]["id"])}.p'), 'rb')
             data = pickle.load(file, encoding='bytes')
-            audio = torch.from_numpy(data).type(torch.FloatTensor)
+            data = torch.from_numpy(data).type(torch.FloatTensor).squeeze(0)
+            audio = torch.cat([frame for frame in data[:4]], dim=1)
             
         if self.args.task == "mpaa":
             genres = torch.zeros(len(self.args.genres))

@@ -12,15 +12,48 @@ class AudioEncoder(nn.Module):
         super(AudioEncoder, self).__init__()
         self.args = args
         
+        self.conv1 = nn.Sequential(
+            nn.Conv1d(128, 128, 128, stride=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2)
+        )
+        
+        self.conv2 = nn.Sequential(
+            nn.Conv1d(128, 128, 128, stride=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2)
+        )
+        
+        self.conv3 = nn.Sequential(
+            nn.Conv1d(128, 128, 128, stride=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2)
+        )
+        
+        self.conv4 = nn.Sequential(
+            nn.Conv1d(128, 128, 128, stride=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2)
+        )
+        
+        '''
         conv_layers = []
-        conv_layers.append(nn.Conv1d(96, 96, 128, stride=2))
-        conv_layers.append(nn.Conv1d(96, 96, 128, stride=2))
+        conv_layers.append(nn.Conv1d(128, 128, 128, stride=2))
+        conv_layers.append(nn.Conv1d(128, 128, 128, stride=2))
         conv_layers.append(nn.AdaptiveAvgPool1d(200))
         self.conv_layers = nn.ModuleList(conv_layers)
+        '''
 
     def forward(self, x):
-        for layer in self.conv_layers:
-            x = layer(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        #x = self.conv4(x)
+        
         return x
 
 
@@ -179,11 +212,11 @@ class MMTransformer3MClf(nn.Module):
         """
         text, audio, and vision should have dimension [batch_size, seq_len, n_features]
         """
+        #print(audio.shape)
         x_l = self.enc(txt, mask, segment)
         x_l = F.dropout(x_l.transpose(1, 2), p=self.embed_dropout, training=self.training)
         x_v = img.transpose(1, 2)
         x_a = self.audio_enc(audio)
-        #import pdb;pdb.set_trace()
 
         # Project the textual/visual/audio features
         proj_x_l = x_l if self.orig_d_l == self.d_l else self.proj_l(x_l)
