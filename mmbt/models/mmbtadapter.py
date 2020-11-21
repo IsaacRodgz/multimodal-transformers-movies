@@ -291,17 +291,34 @@ class BertAdapter(nn.Module):
 
     def __init__(self, hidden_size, adapter_size):
         super(BertAdapter, self).__init__()
-        self.adapter_encoder = nn.Linear(hidden_size, adapter_size)
-        self.adapter_decoder = nn.Linear(adapter_size, hidden_size)
-
-        truncated_normal_(self.adapter_encoder.weight.data, mean=0, std=0.02)
-        truncated_normal_(self.adapter_decoder.weight.data, mean=0, std=0.02)
+        self.layer_norm_before = nn.LayerNorm(hidden_size)
+        self.adapter_down = nn.Linear(hidden_size, adapter_size)
+        self.adapter_up = nn.Linear(adapter_size, hidden_size)
+        
+        self.adapter_down.apply(self.init_bert_weights)
+        self.adapter_up.apply(self.init_bert_weights)
 
     def forward(self, hidden_states):
-        adapted_hidden_states = self.adapter_encoder(hidden_states)
+        adapted_hidden_states = self.layer_norm_before(hidden_states)
+        adapted_hidden_states = self.adapter_down(adapted_hidden_states)
         adapted_hidden_states = gelu(x=adapted_hidden_states)
-        adapted_hidden_states = self.adapter_decoder(adapted_hidden_states)
+        adapted_hidden_states = self.adapter_up(adapted_hidden_states)
         return adapted_hidden_states + hidden_states
+    
+    @staticmethod
+    def init_bert_weights(module):
+        """Initialize the weights."""
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            # module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            # TODO I set the std to default 0.02, this might need to be changed
+            module.weight.data.normal_(mean=0.0, std=0.02)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
     
 
 class BertSelfOutput(nn.Module):
@@ -442,7 +459,7 @@ class BertModel(PreTrainedBertModel):
         # positions we want to attend and -10000.0 for masked positions.
         # Since we are adding it to the raw scores before the softmax, this is
         # effectively the same as removing these entirely.
-        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
+        #extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
 
         embedding_output = self.embeddings(input_ids, token_type_ids)
@@ -611,7 +628,8 @@ def gelu(x):
         0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
         Also see https://arxiv.org/abs/1606.08415
     """
-    return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+    #return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+    return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
 
 class GeLU(nn.Module):

@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
 
 def get_args(parser):
@@ -178,15 +178,8 @@ def get_optimizer(model, args):
             {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
             {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
-        '''
-        optimizer = BertAdam(
-            optimizer_grouped_parameters,
-            lr=args.lr,
-            warmup=args.warmup,
-            t_total=total_steps,
-        )
-        '''
-        optimizer = optim.Adam(optimizer_grouped_parameters, lr=args.lr)
+
+        optimizer = optim.AdamW(optimizer_grouped_parameters, lr=args.lr)
     elif args.model in ["vilbert", "mmvilbt"]:
         total_steps = (
             args.train_data_len
