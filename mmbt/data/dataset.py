@@ -100,7 +100,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -167,6 +167,13 @@ class JsonlDataset(Dataset):
 
                     image = torch.stack(regions_list, dim=0)
                 '''
+                
+        audio = None
+        if self.args.model == "mmtrvpa":
+            file = open(os.path.join(self.data_dir, 'MelgramPorcessed', f'{str(self.data[index]["id"])}.p'), 'rb')
+            data = pickle.load(file, encoding='bytes')
+            data = torch.from_numpy(data).type(torch.FloatTensor).squeeze(0)
+            audio = torch.cat([frame for frame in data[:4]], dim=1)
             
         if self.args.task == "mpaa":
             genres = torch.zeros(len(self.args.genres))
@@ -182,6 +189,9 @@ class JsonlDataset(Dataset):
         if self.args.task == "mpaa":
             return sentence, segment, image, label, genres
         elif self.args.task == "moviescope":
-            return sentence, segment, image, label, plot
+            if self.args.model == "mmtrvpa":
+                return sentence, segment, image, label, audio
+            else:
+                return sentence, segment, image, label, plot
         else:
             return sentence, segment, image, label
