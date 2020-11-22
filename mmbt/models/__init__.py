@@ -14,6 +14,7 @@ from mmbt.models.concat_bow import  MultimodalConcatBowClf, MultimodalConcatBow1
 from mmbt.models.image import ImageClf
 from mmbt.models.mmbt import MultimodalBertClf
 from mmbt.models.mmbtadapter import MultimodalBertAdapterClf
+from mmbt.models.mmbtadapterm import MultimodalBertAdapterMClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
 from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerMoviescope3Clf, MMTransformerGMUMoviescopeClf, MMTransformer3MClf
@@ -35,6 +36,7 @@ MODELS = {
     "img": ImageClf,
     "mmbt": MultimodalBertClf,
     "mmbtadapter": MultimodalBertAdapterClf,
+    "mmbtadapterm": MultimodalBertAdapterMClf,
     "mmbt3": MultimodalBertThreeClf,
     "mmtr": TransformerVideoClf,
     "mmtrvpp": MMTransformerGMUMoviescopeClf, # video-plot-poster

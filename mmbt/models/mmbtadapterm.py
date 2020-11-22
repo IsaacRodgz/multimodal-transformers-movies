@@ -14,6 +14,7 @@ from transformers import BertModel as HuggingBertModel
 from pytorch_pretrained_bert.modeling import BertEmbeddings, BertSelfAttention, BertLayerNorm, BertIntermediate, BertPooler
 #from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 from collections import OrderedDict
+from mmbt.models.image import ImageEncoder
 
 from transformers import (
     AdapterConfig,
@@ -73,7 +74,8 @@ class BertConfig(object):
                  max_position_embeddings=512,
                  type_vocab_size=2,
                  initializer_range=0.02,
-                 adapter_size=64):
+                 adapter_size=64,
+                 img_hidden_sz=2048):
         """Constructs BertConfig.
         Args:
             vocab_size_or_config_json_file: Vocabulary size of `inputs_ids` in `BertModel`.
@@ -115,6 +117,7 @@ class BertConfig(object):
             self.type_vocab_size = type_vocab_size
             self.initializer_range = initializer_range
             self.adapter_size = adapter_size
+            self.img_hidden_sz = img_hidden_sz
         else:
             raise ValueError("First argument must be either a vocabulary size (int)"
                              "or the path to a pretrained model config file (str)")
@@ -319,33 +322,60 @@ class Activation_Function_Class(nn.Module):
         return self.f(x)
 
 
-class BertAdapter(nn.Module):
+class BertMultimodalAdapter(nn.Module):
     """
-    This module implements the "Parameter-Efficient Transfer Learning for NLP" paper:
+    Multimodal adaptation based from "Parameter-Efficient Transfer Learning for NLP" paper:
     https://arxiv.org/pdf/1902.00751.pdf
     """
 
-    def __init__(self, hidden_size, adapter_size):
-        super(BertAdapter, self).__init__()
+    def __init__(self, hidden_size, m_hidden_size, adapter_size):
+        super(BertMultimodalAdapter, self).__init__()
         seq_list = []
+        m_seq_list = [] # Complementary modality
         
+        # BERT input down projection
         self.layer_norm_before = nn.LayerNorm(hidden_size)
         seq_list.append(self.layer_norm_before)
         seq_list.append(nn.Linear(hidden_size, adapter_size))
         self.non_linearity = Activation_Function_Class("gelu")
         seq_list.append(self.non_linearity)
         
+        # Complementary modality down projection
+        self.m_layer_norm_before = nn.LayerNorm(m_hidden_size)
+        m_seq_list.append(self.m_layer_norm_before)
+        m_seq_list.append(nn.Linear(m_hidden_size, adapter_size))
+        self.m_non_linearity = Activation_Function_Class("gelu")
+        m_seq_list.append(self.m_non_linearity)
+        
+        # Down projection
         self.adapter_down = nn.Sequential(*seq_list)
+        self.m_adapter_down = nn.Sequential(*m_seq_list)
+        
+        # Multimodality gated combination
+        self.gate = nn.Linear(adapter_size*2, adapter_size, bias=False)
+        
+        # Up projection
         self.adapter_up = nn.Linear(adapter_size, hidden_size)
+        self.m_adapter_up = nn.Linear(adapter_size, m_hidden_size)
         
         self.adapter_down.apply(self.init_bert_weights)
         self.adapter_up.apply(self.init_bert_weights)
+        self.m_adapter_down.apply(self.init_bert_weights)
+        self.m_adapter_up.apply(self.init_bert_weights)
 
-    def forward(self, hidden_states):
-        #adapted_hidden_states = self.layer_norm_before(hidden_states)
+    def forward(self, hidden_states, mod=None):
+        #import pdb;pdb.set_trace()
         adapted_hidden_states = self.adapter_down(hidden_states)
-        #adapted_hidden_states = gelu(x=adapted_hidden_states)
-        adapted_hidden_states = self.adapter_up(adapted_hidden_states)
+        adapted_m_hidden_states = self.m_adapter_down(mod)
+        
+        #input_cat = torch.cat((adapted_hidden_states, adapted_m_hidden_states), dim=1)
+        seq_len = adapted_hidden_states.shape[1]
+        adapted_m_hidden_states = adapted_m_hidden_states.unsqueeze(1).repeat(1,seq_len,1)
+        input_cat = torch.cat((adapted_hidden_states, adapted_m_hidden_states), dim=2)
+        scores = F.sigmoid(self.gate(input_cat))
+        mixed = scores*adapted_hidden_states + (1-scores)*adapted_m_hidden_states
+        
+        adapted_hidden_states = self.adapter_up(mixed)
         return adapted_hidden_states + hidden_states
     
     @staticmethod
@@ -370,12 +400,12 @@ class BertSelfOutput(nn.Module):
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.Adapter = BertAdapter(hidden_size=config.hidden_size, adapter_size=config.adapter_size)
+        self.Adapter = BertMultimodalAdapter(hidden_size=config.hidden_size, m_hidden_size=config.img_hidden_sz,adapter_size=config.adapter_size)
 
-    def forward(self, hidden_states, input_tensor):
+    def forward(self, hidden_states, input_tensor, mod=None):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
-        hidden_states = self.Adapter(hidden_states)
+        hidden_states = self.Adapter(hidden_states, mod)
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
 
@@ -386,9 +416,9 @@ class BertAttention(nn.Module):
         self.self = BertSelfAttention(config)
         self.output = BertSelfOutput(config)
 
-    def forward(self, input_tensor, attention_mask):
+    def forward(self, input_tensor, attention_mask, mod=None):
         self_output = self.self(input_tensor, attention_mask)
-        attention_output = self.output(self_output, input_tensor)
+        attention_output = self.output(self_output, input_tensor, mod)
         return attention_output
 
 
@@ -398,12 +428,12 @@ class BertOutput(nn.Module):
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.Adapter = BertAdapter(hidden_size=config.hidden_size, adapter_size=config.adapter_size)
+        self.Adapter = BertMultimodalAdapter(hidden_size=config.hidden_size, m_hidden_size=config.img_hidden_sz, adapter_size=config.adapter_size)
 
-    def forward(self, hidden_states, input_tensor):
+    def forward(self, hidden_states, input_tensor, mod=None):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
-        hidden_states = self.Adapter(hidden_states)
+        hidden_states = self.Adapter(hidden_states, mod)
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
 
@@ -415,10 +445,10 @@ class BertLayer(nn.Module):
         self.intermediate = BertIntermediate(config)
         self.output = BertOutput(config)
 
-    def forward(self, hidden_states, attention_mask):
-        attention_output = self.attention(hidden_states, attention_mask)
+    def forward(self, hidden_states, attention_mask, mod=None):
+        attention_output = self.attention(hidden_states, attention_mask, mod)
         intermediate_output = self.intermediate(attention_output)
-        layer_output = self.output(intermediate_output, attention_output)
+        layer_output = self.output(intermediate_output, attention_output, mod)
         return layer_output
 
 
@@ -428,10 +458,10 @@ class BertEncoder(nn.Module):
         layer = BertLayer(config)
         self.layer = nn.ModuleList([copy.deepcopy(layer) for _ in range(config.num_hidden_layers)])
 
-    def forward(self, hidden_states, attention_mask, output_all_encoded_layers=True):
+    def forward(self, hidden_states, attention_mask, output_all_encoded_layers=True, mod=None):
         all_encoder_layers = []
         for layer_module in self.layer:
-            hidden_states = layer_module(hidden_states, attention_mask)
+            hidden_states = layer_module(hidden_states, attention_mask, mod)
             if output_all_encoded_layers:
                 all_encoder_layers.append(hidden_states)
         if not output_all_encoded_layers:
@@ -484,7 +514,7 @@ class BertModel(PreTrainedBertModel):
         self.pooler = BertPooler(config)
         self.apply(self.init_bert_weights)
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, output_all_encoded_layers=True):
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, output_all_encoded_layers=True, mod=None):
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
         if token_type_ids is None:
@@ -508,7 +538,8 @@ class BertModel(PreTrainedBertModel):
         embedding_output = self.embeddings(input_ids, token_type_ids)
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
-                                      output_all_encoded_layers=output_all_encoded_layers)
+                                      output_all_encoded_layers=output_all_encoded_layers,
+                                      mod=mod)
         sequence_output = encoded_layers[-1]
         pooled_output = self.pooler(sequence_output)
         if not output_all_encoded_layers:
@@ -645,22 +676,12 @@ class BertTextEncoder(nn.Module):
         self.args = args
         
         self.bert = BertModel.from_pretrained(args.bert_model)
-        '''
-        self.bert = HuggingBertModel.from_pretrained(args.bert_model)
-        adapter_config = AdapterConfig.load(
-                "houlsby",
-                non_linearity="gelu",
-                reduction_factor=12,
-            )
-        self.bert.add_adapter("mmimdb", AdapterType.text_task, config=adapter_config)
-        self.bert.train_adapter(["mmimdb"])
-        self.bert.set_active_adapters("mmimdb")
-        '''
+        self.img_enc = ImageEncoder(args)
 
-    def forward(self, input_txt, attention_mask, segment):
+    def forward(self, input_txt, attention_mask, segment, img):
         bsz = input_txt.size(0)
-
-        out = self.bert(input_ids=input_txt, token_type_ids=segment, attention_mask=attention_mask)
+        img = self.img_enc(img).squeeze(1)
+        out = self.bert(input_ids=input_txt, token_type_ids=segment, attention_mask=attention_mask, mod=img)
         
         return out[1]
     
@@ -704,15 +725,13 @@ class SimpleClassifier(nn.Module):
         return self.logit_fc(hidden_states)
 
 
-class MultimodalBertAdapterClf(nn.Module):
+class MultimodalBertAdapterMClf(nn.Module):
     def __init__(self, args):
-        super(MultimodalBertAdapterClf, self).__init__()
+        super(MultimodalBertAdapterMClf, self).__init__()
         self.args = args
-        #self.enc = MultimodalBertEncoder(args)
         self.enc = BertTextEncoder(args)
-        #self.clf = nn.Linear(args.hidden_sz, args.n_classes)
         self.clf = SimpleClassifier(args.hidden_sz, args.hidden_sz, args.n_classes, 0.0)
 
-    def forward(self, txt, mask, segment):
-        x = self.enc(txt, mask, segment)
+    def forward(self, txt, mask, segment, img):
+        x = self.enc(txt, mask, segment, img)
         return self.clf(x)

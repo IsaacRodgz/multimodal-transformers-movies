@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
@@ -58,7 +58,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -150,15 +150,7 @@ def get_optimizer(model, args):
             warmup=args.warmup,
             t_total=total_steps,
         )
-    elif args.model == "mmbtadapter":
-        '''
-        total_steps = (
-            args.train_data_len
-            / args.batch_sz
-            / args.gradient_accumulation_steps
-            * args.max_epochs
-        )
-        '''
+    elif args.model in ["mmbtadapter", "mmbtadapterm"]:
         param_optimizer = np.array(list(model.named_parameters()))
         zero_grad_mask = []
     
@@ -350,6 +342,10 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     elif args.model == "mmbtadapter":
         txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
         out = model(txt, mask, segment)
+    elif args.model == "mmbtadapterm":
+        txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
+        img = img.cuda()
+        out = model(txt, mask, segment, img)
     else:
         assert args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3", "mmbtrating"]
         for param in model.enc.img_encoder.parameters():
@@ -454,7 +450,7 @@ def train(args):
         log_metrics("Val", metrics, args, logger)
 
         tuning_metric = (
-            metrics["auc_pr_macro"] if args.task_type == "multilabel" else metrics["wighted_f1"]
+            metrics["macro_f1"] if args.task_type == "multilabel" else metrics["wighted_f1"]
         )
         scheduler.step(tuning_metric)
         is_improvement = tuning_metric > best_metric
