@@ -364,11 +364,9 @@ class BertMultimodalAdapter(nn.Module):
         self.m_adapter_up.apply(self.init_bert_weights)
 
     def forward(self, hidden_states, mod=None):
-        #import pdb;pdb.set_trace()
         adapted_hidden_states = self.adapter_down(hidden_states)
         adapted_m_hidden_states = self.m_adapter_down(mod)
         
-        #input_cat = torch.cat((adapted_hidden_states, adapted_m_hidden_states), dim=1)
         seq_len = adapted_hidden_states.shape[1]
         adapted_m_hidden_states = adapted_m_hidden_states.unsqueeze(1).repeat(1,seq_len,1)
         input_cat = torch.cat((adapted_hidden_states, adapted_m_hidden_states), dim=2)

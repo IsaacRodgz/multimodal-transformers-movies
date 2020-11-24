@@ -450,7 +450,7 @@ def train(args):
         log_metrics("Val", metrics, args, logger)
 
         tuning_metric = (
-            metrics["macro_f1"] if args.task_type == "multilabel" else metrics["wighted_f1"]
+            metrics["micro_f1"] if args.task_type == "multilabel" else metrics["wighted_f1"]
         )
         scheduler.step(tuning_metric)
         is_improvement = tuning_metric > best_metric
