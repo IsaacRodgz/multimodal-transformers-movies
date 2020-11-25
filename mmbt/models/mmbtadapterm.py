@@ -59,6 +59,27 @@ def truncated_normal_(tensor, mean=0, std=1):
     return tensor
 
 
+class GMU(nn.Module):
+    """ Layer inspired by 'Gated multimodal networks, Arevalo1 et al.' (https://arxiv.org/abs/1702.01992) """
+    def __init__(self, size_in1, size_in2, size_out):
+        super(GMU, self).__init__()
+        self.size_in1, self.size_in2, self.size_out = size_in1, size_in2, size_out
+        
+        self.hidden1 = nn.Linear(size_in1, size_out, bias=False)
+        self.hidden2 = nn.Linear(size_in2, size_out, bias=False)
+        self.x1_gate = nn.Linear(size_in1+size_in2, size_out, bias=False)
+        self.x2_gate = nn.Linear(size_in1+size_in2, size_out, bias=False)
+
+    def forward(self, x1, x2):
+        h1 = F.tanh(self.hidden1(x1))
+        h2 = F.tanh(self.hidden2(x2))
+        x_cat = torch.cat((x1, x2), dim=1)
+        z1 = F.sigmoid(self.x1_gate(x_cat))
+        z2 = F.sigmoid(self.x2_gate(x_cat))
+
+        return z1*h1 + z2*h2, torch.cat((z1, z2), dim=1)
+
+
 class BertConfig(object):
     """Configuration class to store the configuration of a `BertModel`.
     """
@@ -732,4 +753,25 @@ class MultimodalBertAdapterMClf(nn.Module):
 
     def forward(self, txt, mask, segment, img):
         x = self.enc(txt, mask, segment, img)
+        return self.clf(x)
+
+
+class MultimodalBertAdapterMTropesClf(nn.Module):
+    def __init__(self, args):
+        super(MultimodalBertAdapterMTropesClf, self).__init__()
+        self.args = args
+        self.enc = BertTextEncoder(args)
+        proj_dim = 512
+        self.gmu = GMU(args.hidden_sz, args.hidden_sz, proj_dim)
+        self.clf = SimpleClassifier(proj_dim, proj_dim, args.n_classes, 0.0)
+        
+        with open('centroids768.npy', 'rb') as f:
+            centroids_load = np.load(f)
+            
+        self.tropes_centroids = torch.from_numpy(centroids_load).t().cuda()
+
+    def forward(self, txt, mask, segment, img):
+        x = self.enc(txt, mask, segment, img)
+        dot_prod = torch.matmul(x, self.tropes_centroids.to(x.device))
+        x, z = self.gmu(x, dot_prod)
         return self.clf(x)
