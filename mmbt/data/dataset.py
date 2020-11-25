@@ -117,15 +117,16 @@ class JsonlDataset(Dataset):
             #image = self.transforms(image)
             '''
             if self.args.task == "moviescope":
-                file = open(os.path.join(self.data_dir, '200F_VGG16', f'{str(self.data[index]["id"])}.p'), 'rb')
-                data = pickle.load(file, encoding='bytes')
-                image = torch.from_numpy(data).squeeze(0)
+                if self.args.model not in ["mmbtadapterm"]:
+                    file = open(os.path.join(self.data_dir, '200F_VGG16', f'{str(self.data[index]["id"])}.p'), 'rb')
+                    data = pickle.load(file, encoding='bytes')
+                    image = torch.from_numpy(data).squeeze(0)
                 
-                plot = None
-                if self.args.model in ["mmtrvpp"]:
+                poster = None
+                if self.args.model in ["mmtrvpp", "mmbtadapterm"]:
                     file = open(os.path.join(self.data_dir, 'PosterFeatures', f'{str(self.data[index]["id"])}.p'), 'rb')
                     data = pickle.load(file, encoding='bytes')
-                    plot = torch.from_numpy(data).squeeze(0)
+                    poster = torch.from_numpy(data).squeeze(0)
             else:
                 #'''
                 # Original
@@ -192,6 +193,6 @@ class JsonlDataset(Dataset):
             if self.args.model == "mmtrvpa":
                 return sentence, segment, image, label, audio
             else:
-                return sentence, segment, image, label, plot
+                return sentence, segment, image, label, poster
         else:
             return sentence, segment, image, label
