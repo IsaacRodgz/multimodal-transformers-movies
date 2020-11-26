@@ -117,13 +117,13 @@ class JsonlDataset(Dataset):
             #image = self.transforms(image)
             '''
             if self.args.task == "moviescope":
-                if self.args.model not in ["mmbtadapterm"]:
+                if self.args.visual in ["video", "both"]:
                     file = open(os.path.join(self.data_dir, '200F_VGG16', f'{str(self.data[index]["id"])}.p'), 'rb')
                     data = pickle.load(file, encoding='bytes')
                     image = torch.from_numpy(data).squeeze(0)
                 
                 poster = None
-                if self.args.model in ["mmtrvpp", "mmbtadapterm"]:
+                if self.args.visual in ["poster", "both"]:
                     file = open(os.path.join(self.data_dir, 'PosterFeatures', f'{str(self.data[index]["id"])}.p'), 'rb')
                     data = pickle.load(file, encoding='bytes')
                     poster = torch.from_numpy(data).squeeze(0)

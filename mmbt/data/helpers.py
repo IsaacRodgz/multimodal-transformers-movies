@@ -101,22 +101,22 @@ def collate_fn(batch, args):
     segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtadapter"] or args.visual in ["video", "both"]:
         img_tensor = torch.stack([row[2] for row in batch])
         
     genres = None
     if args.task == "mpaa":
         genres = torch.stack([row[4] for row in batch])
         
-    plot = None
+    poster = None
     audio = None
     if args.task == "moviescope":
         if args.model == "mmtrvpa":
             img_lens = [row[4].shape[1] for row in batch]
             img_min_len = min(img_lens)
             audio = torch.stack([row[4][..., :img_min_len] for row in batch])
-        else:
-            plot = torch.stack([row[4] for row in batch])
+        if args.visual in ["poster", "both"]:
+            poster = torch.stack([row[4] for row in batch])
 
     if args.task_type == "multilabel":
         # Multilabel case
@@ -141,7 +141,7 @@ def collate_fn(batch, args):
         if args.model == "mmtrvpa":
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio
         else:
-            return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, plot
+            return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster
     else:
         return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, genres
 

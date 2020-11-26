@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
@@ -63,6 +63,7 @@ def get_args(parser):
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
     parser.add_argument("--num_images", type=int, default=8)
+    parser.add_argument("--visual", type=str, default="poster", choices=["poster", "video", "both"])
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--savedir", type=str, default="/path/to/save_dir/")
     parser.add_argument("--seed", type=int, default=123)
@@ -343,9 +344,14 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
         out = model(txt, mask, segment)
     elif args.model == "mmbtadapterm":
-        txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
-        img = img.cuda()
-        out = model(txt, mask, segment, img)
+        if args.task == "moviescope":
+            txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
+            poster = poster.cuda()
+            out = model(txt, mask, segment, poster)
+        else:
+            txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
+            img = img.cuda()
+            out = model(txt, mask, segment, img)
     else:
         assert args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3", "mmbtrating"]
         for param in model.enc.img_encoder.parameters():
@@ -450,7 +456,7 @@ def train(args):
         log_metrics("Val", metrics, args, logger)
 
         tuning_metric = (
-            metrics["micro_f1"] if args.task_type == "multilabel" else metrics["wighted_f1"]
+            metrics["auc_pr_micro"] if args.task_type == "multilabel" else metrics["wighted_f1"]
         )
         scheduler.step(tuning_metric)
         is_improvement = tuning_metric > best_metric
