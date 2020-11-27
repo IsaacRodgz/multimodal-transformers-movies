@@ -14,7 +14,7 @@ from transformers import BertModel as HuggingBertModel
 from pytorch_pretrained_bert.modeling import BertEmbeddings, BertSelfAttention, BertLayerNorm, BertIntermediate, BertPooler
 #from pytorch_pretrained_bert.modeling import WEIGHTS_NAME
 from collections import OrderedDict
-from mmbt.models.image import ImageEncoder
+from mmbt.models.image import ImageEncoder, ImageEncoder16
 
 from transformers import (
     AdapterConfig,

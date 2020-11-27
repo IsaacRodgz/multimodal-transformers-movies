@@ -124,9 +124,14 @@ class JsonlDataset(Dataset):
                 
                 poster = None
                 if self.args.visual in ["poster", "both"]:
+                    image_dir = os.path.join(self.data_dir, 'Raw_Poster', f'{str(self.data[index]["id"])}.jpg')
+                    poster = image = Image.open(image_dir).convert("RGB")
+                    poster = self.transforms(poster)
+                    '''
                     file = open(os.path.join(self.data_dir, 'PosterFeatures', f'{str(self.data[index]["id"])}.p'), 'rb')
                     data = pickle.load(file, encoding='bytes')
                     poster = torch.from_numpy(data).squeeze(0)
+                    '''
             else:
                 #'''
                 # Original
