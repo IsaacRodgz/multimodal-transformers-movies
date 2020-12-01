@@ -67,7 +67,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -118,6 +118,7 @@ def collate_fn(batch, args):
         
     poster = None
     audio = None
+    metadata = None
     if args.task == "moviescope":
         if args.model == "mmtrvpa":
             img_lens = [row[4].shape[1] for row in batch]
@@ -125,6 +126,8 @@ def collate_fn(batch, args):
             audio = torch.stack([row[4][..., :img_min_len] for row in batch])
         if args.visual in ["poster", "both"]:
             poster = torch.stack([row[4] for row in batch])
+        if args.model == "mmtrvppm":
+            metadata = torch.stack([row[5] for row in batch])
 
     if args.task_type == "multilabel":
         # Multilabel case
@@ -148,6 +151,8 @@ def collate_fn(batch, args):
     elif args.task == "moviescope":
         if args.model == "mmtrvpa":
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio
+        elif args.model == "mmtrvppm":
+            return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster, metadata
         else:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster
     else:
@@ -162,7 +167,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )

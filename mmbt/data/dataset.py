@@ -37,6 +37,15 @@ class JsonlDataset(Dataset):
         self.max_seq_len = args.max_seq_len
         if args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]:
             self.max_seq_len -= args.num_image_embeds
+        
+        if self.args.model == "mmtrvppm":
+            split = data_path.split('/')[-1].split('.')[0]
+            split = split if split != 'dev' else 'val'
+            metadata_dir = os.path.join(self.data_dir, 'Metadata_matrices', f'{split}_metadata.npy')
+            self.metadata_matrix = np.load(metadata_dir)
+            metadata_dir = os.path.join(self.data_dir, 'Metadata_matrices', f'{split}_ids.pickle')
+            with open(metadata_dir, 'rb') as handle:
+                self.metadata_dict = pickle.load(handle)
 
         self.transforms = transforms_
         self.vilbert_transforms = transforms.Compose(
@@ -100,7 +109,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -124,6 +133,7 @@ class JsonlDataset(Dataset):
                 
                 poster = None
                 if self.args.visual in ["poster", "both"]:
+                    '''
                     image_dir = os.path.join(self.data_dir, 'Raw_Poster', f'{str(self.data[index]["id"])}.jpg')
                     poster = image = Image.open(image_dir).convert("RGB")
                     poster = self.transforms(poster)
@@ -131,7 +141,6 @@ class JsonlDataset(Dataset):
                     file = open(os.path.join(self.data_dir, 'PosterFeatures', f'{str(self.data[index]["id"])}.p'), 'rb')
                     data = pickle.load(file, encoding='bytes')
                     poster = torch.from_numpy(data).squeeze(0)
-                    '''
             else:
                 #'''
                 # Original
@@ -176,11 +185,23 @@ class JsonlDataset(Dataset):
                 
         audio = None
         if self.args.model == "mmtrvpa":
-            file = open(os.path.join(self.data_dir, 'MelgramPorcessed', f'{str(self.data[index]["id"])}.p'), 'rb')
-            data = pickle.load(file, encoding='bytes')
-            data = torch.from_numpy(data).type(torch.FloatTensor).squeeze(0)
-            audio = torch.cat([frame for frame in data[:4]], dim=1)
-            
+            if self.args.orig_d_a == 96:
+                file = open(os.path.join(self.data_dir, 'Melspectrogram', f'{str(self.data[index]["id"])}.p'), 'rb')
+                data = pickle.load(file, encoding='bytes')
+                audio = torch.from_numpy(data).type(torch.FloatTensor)
+            else: 
+                file = open(os.path.join(self.data_dir, 'MelgramPorcessed', f'{str(self.data[index]["id"])}.p'), 'rb')
+                data = pickle.load(file, encoding='bytes')
+                data = torch.from_numpy(data).type(torch.FloatTensor).squeeze(0)
+                audio = torch.cat([frame for frame in data[:4]], dim=1)
+        
+        metadata = None
+        if self.args.model == "mmtrvppm":
+            example_id = self.data[index]["id"]
+            metadata_idx = self.metadata_dict[example_id]
+            metadata = self.metadata_matrix[metadata_idx]
+            metadata = torch.from_numpy(metadata).type(torch.FloatTensor)
+                    
         if self.args.task == "mpaa":
             genres = torch.zeros(len(self.args.genres))
             genres[[self.args.genres.index(tgt) for tgt in self.data[index]["genre"]]] = 1
@@ -191,12 +212,14 @@ class JsonlDataset(Dataset):
             sentence = sentence[1:]
             # The first segment (0) is of images.
             segment += 1
-
+        
         if self.args.task == "mpaa":
             return sentence, segment, image, label, genres
         elif self.args.task == "moviescope":
             if self.args.model == "mmtrvpa":
                 return sentence, segment, image, label, audio
+            elif self.args.model == "mmtrvppm":
+                return sentence, segment, image, label, poster, metadata
             else:
                 return sentence, segment, image, label, poster
         else:
