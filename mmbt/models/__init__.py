@@ -17,7 +17,7 @@ from mmbt.models.mmbtadapter import MultimodalBertAdapterClf
 from mmbt.models.mmbtadapterm import MultimodalBertAdapterMClf, MultimodalBertAdapterMTropesClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
-from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerMoviescope3Clf, MMTransformerGMUMoviescopeClf, MMTransformer3MClf, MMTransformerGMU4MoviescopeClf
+from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerMoviescope3Clf, MMTransformerGMUMoviescopeClf, MMTransformer3MClf, MMTransformerGMU4MoviescopeClf, MMTransformerConcat4MoviescopeClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
