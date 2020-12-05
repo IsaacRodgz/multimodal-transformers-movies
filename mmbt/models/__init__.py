@@ -17,7 +17,7 @@ from mmbt.models.mmbtadapter import MultimodalBertAdapterClf
 from mmbt.models.mmbtadapterm import MultimodalBertAdapterMClf, MultimodalBertAdapterMTropesClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
-from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerGMUMoviescopeVidTextClf, MMTransformerGMUMoviescopeClf, MMTransformer3MClf, MMTransformerGMU4MoviescopeClf, MMTransformerConcat4MoviescopeClf
+from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerGMUMoviescopeVidTextClf, MMTransformerGMUMoviescopeClf, MMTransformerConcatMoviescopeClf, MMTransformer3MClf, MMTransformerGMU4MoviescopeClf, MMTransformerConcat4MoviescopeClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
@@ -39,8 +39,8 @@ MODELS = {
     "mmbtadapterm": MultimodalBertAdapterMClf,
     "mmbt3": MultimodalBertThreeClf,
     "mmtr": TransformerVideoClf,
-    "mmtrv": MMTransformerGMUMoviescopeVidTextClf, # text-video
-    "mmtrvpp": MMTransformerGMUMoviescopeClf, # video-plot-poster
+    "mmtrv": MMTransformerGMUMoviescopeVidTextClf, # text-video (MMTransformerMoviescopeClf)
+    "mmtrvpp": MMTransformerConcatMoviescopeClf, # video-plot-poster (MMTransformerGMUMoviescopeClf)
     "mmtrvpa": MMTransformer3MClf, # video-plot-audio
     "mmtrvppm": MMTransformerGMU4MoviescopeClf, # video-plot-poster-metadata
     "mmbtp": MultimodalBertTransfClf,
