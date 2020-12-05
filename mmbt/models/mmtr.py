@@ -111,25 +111,21 @@ class GatedMultimodalLayer(nn.Module):
         
         self.hidden1 = nn.Linear(size_in1, size_out, bias=False)
         self.hidden2 = nn.Linear(size_in2, size_out, bias=False)
-        self.sigmoid_fc = nn.Linear(size_in1+size_in2, size_out, bias=False)
-
-        # Activation functions
-        self.tanh_f = nn.Tanh()
-        self.sigmoid_f = nn.Sigmoid()
+        self.x_gate = nn.Linear(size_in1+size_in2, size_out, bias=False)
 
     def forward(self, x1, x2):
-        h1 = self.tanh_f(self.hidden1(x1))
-        h2 = self.tanh_f(self.hidden2(x2))
+        h1 = F.tanh(self.hidden1(x1))
+        h2 = F.tanh(self.hidden2(x2))
         x_cat = torch.cat((x1, x2), dim=1)
-        z = self.sigmoid_f(self.sigmoid_fc(x_cat))
+        z = F.sigmoid(self.x_gate(x_cat))
 
         return z*h1 + (1-z)*h2, z
 
 
-class TextShiftingLayer(nn.Module):
+class TextShifting3Layer(nn.Module):
     """ Layer inspired by 'Gated multimodal networks, Arevalo1 et al.' (https://arxiv.org/abs/1702.01992) """
     def __init__(self, size_in1, size_in2, size_in3, size_out):
-        super(TextShiftingLayer, self).__init__()
+        super(TextShifting3Layer, self).__init__()
         self.size_in1, self.size_in2, self.size_in3, self.size_out = size_in1, size_in2, size_in3, size_out
         
         self.hidden1 = nn.Linear(size_in1, size_out, bias=False)
@@ -183,7 +179,7 @@ class TextShifting4Layer(nn.Module):
 class MMTransformer3MClf(nn.Module):
     def __init__(self, args):
         """
-        Construct a MulT model as in the original paper.
+        Construct a MulT model for Text, Video frames and Audio spectrogram with GMU late fusion.
         """
         super(MMTransformer3MClf, self).__init__()
         self.args = args
@@ -456,7 +452,7 @@ class MMTransformerClf(nn.Module):
 class MMTransformerMoviescopeClf(nn.Module):
     def __init__(self, args):
         """
-        Construct a MulT model as in the original paper.
+        Construct a MulT model for Text and Video frames with Concatenation late fusion.
         """
         super(MMTransformerMoviescopeClf, self).__init__()
         self.args = args
@@ -572,14 +568,14 @@ class MMTransformerMoviescopeClf(nn.Module):
         
         output = self.out_layer(last_hs_proj)
         return output
-    
-    
-class MMTransformerMoviescope3Clf(nn.Module):
+
+
+class MMTransformerGMUMoviescopeVidTextClf(nn.Module):
     def __init__(self, args):
         """
-        Construct a MulT model as in the original paper.
+        Construct a MulT model for Text and Video frames with GMU late fusion.
         """
-        super(MMTransformerMoviescope3Clf, self).__init__()
+        super(MMTransformerGMUMoviescopeVidTextClf, self).__init__()
         self.args = args
         self.orig_d_l, self.orig_d_v = args.orig_d_l, args.orig_d_v
         self.d_l, self.d_a, self.d_v = 768, 768, 768
@@ -604,6 +600,7 @@ class MMTransformerMoviescope3Clf(nn.Module):
             combined_dim = self.d_l   # assuming d_l == d_v
         else:
             combined_dim = (self.d_l + self.d_v)
+        combined_dim = 768 # For GMU
         
         output_dim = args.n_classes        # This is actually not a hyperparameter :-)
 
@@ -626,6 +623,9 @@ class MMTransformerMoviescope3Clf(nn.Module):
         self.proj1 = nn.Linear(combined_dim, combined_dim)
         self.proj2 = nn.Linear(combined_dim, combined_dim)
         self.out_layer = nn.Linear(combined_dim, output_dim)
+        
+        # GMU layer for fusing text and video information
+        self.gmu = GatedMultimodalLayer(self.d_l, self.d_v, self.d_l)
 
     def get_network(self, self_type='l', layers=-1):
         if self_type in ['l', 'vl']:
@@ -648,7 +648,7 @@ class MMTransformerMoviescope3Clf(nn.Module):
                                   embed_dropout=self.embed_dropout,
                                   attn_mask=self.attn_mask)
             
-    def forward(self, txt, mask, segment, img, poster):
+    def forward(self, txt, mask, segment, img, output_gate=False):
         """
         text, and vision should have dimension [batch_size, seq_len, n_features]
         """
@@ -660,8 +660,7 @@ class MMTransformerMoviescope3Clf(nn.Module):
         x_v = torch.cat(seg_features, dim=1)
         '''
         x_l = F.dropout(x_l.transpose(1, 2), p=self.embed_dropout, training=self.training)
-        x_v = torch.cat([poster.unsqueeze(1), img], dim=1)
-        x_v = x_v.transpose(1, 2)
+        x_v = img.transpose(1, 2)
 
         # Project the textual/visual/audio features
         proj_x_l = x_l if self.orig_d_l == self.d_l else self.proj_l(x_l)
@@ -685,15 +684,16 @@ class MMTransformerMoviescope3Clf(nn.Module):
                 h_vs = h_vs[0]
             last_h_v = last_hs = h_vs[-1]
         
-        if self.partial_mode == 2:
-            last_hs = torch.cat([last_h_l, last_h_v], dim=1)
+        last_hs, z = self.gmu(last_h_l, last_h_v)
         
         # A residual block
         last_hs_proj = self.proj2(F.dropout(F.relu(self.proj1(last_hs)), p=self.out_dropout, training=self.training))
         last_hs_proj += last_hs
-        
-        output = self.out_layer(last_hs_proj)
-        return output
+                
+        if output_gate:
+            return self.out_layer(last_hs_proj), z
+        else:
+            return self.out_layer(last_hs_proj)
 
 
 class MMTransformerUniBi(nn.Module):

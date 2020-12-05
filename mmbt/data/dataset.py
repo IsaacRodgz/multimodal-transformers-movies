@@ -109,7 +109,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
