@@ -38,7 +38,7 @@ class JsonlDataset(Dataset):
         if args.model in ["mmbt", "mmbtp", "mmdbt", "mmbt3"]:
             self.max_seq_len -= args.num_image_embeds
         
-        if self.args.model == "mmtrvppm":
+        if self.args.model in ["mmtrvppm", "mmtrvpapm"]:
             split = data_path.split('/')[-1].split('.')[0]
             split = split if split != 'dev' else 'val'
             metadata_dir = os.path.join(self.data_dir, 'Metadata_matrices', f'{split}_metadata.npy')
@@ -109,7 +109,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -184,7 +184,7 @@ class JsonlDataset(Dataset):
                 '''
                 
         audio = None
-        if self.args.model == "mmtrvpa":
+        if self.args.model in ["mmtrvpa", "mmtrvpapm"]:
             if self.args.orig_d_a == 96:
                 file = open(os.path.join(self.data_dir, 'Melspectrogram', f'{str(self.data[index]["id"])}.p'), 'rb')
                 data = pickle.load(file, encoding='bytes')
@@ -196,7 +196,7 @@ class JsonlDataset(Dataset):
                 audio = torch.cat([frame for frame in data[:4]], dim=1)
         
         metadata = None
-        if self.args.model == "mmtrvppm":
+        if self.args.model in ["mmtrvppm", "mmtrvpapm"]:
             example_id = self.data[index]["id"]
             metadata_idx = self.metadata_dict[example_id]
             metadata = self.metadata_matrix[metadata_idx]
@@ -220,6 +220,8 @@ class JsonlDataset(Dataset):
                 return sentence, segment, image, label, audio
             elif self.args.model == "mmtrvppm":
                 return sentence, segment, image, label, poster, metadata
+            elif self.args.model == "mmtrvpapm":
+                return sentence, segment, image, label, audio, poster, metadata
             else:
                 return sentence, segment, image, label, poster
         else:

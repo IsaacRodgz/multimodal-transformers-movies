@@ -58,7 +58,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrv", "mmtrvpp", "mmtrvpa", "mmtrvppm", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrv", "mmtrvpp", "mmtrvpa", "mmtrvppm", "mmtrvpapm", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -286,6 +286,8 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
                 txt, segment, mask, img, tgt, audio = batch
             elif args.model == "mmtrvppm":
                 txt, segment, mask, img, tgt, poster, metadata = batch
+            elif args.model == "mmtrvpapm":
+                txt, segment, mask, img, tgt, audio, poster, metadata = batch
             else:
                 txt, segment, mask, img, tgt, poster = batch
         else:
@@ -340,6 +342,15 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
             out, gates = model(txt, mask, segment, img, poster, metadata, gmu_gate)
         else:
             out = model(txt, mask, segment, img, poster, metadata)
+    elif args.model in ["mmtrvpapm"]:
+        txt, img, audio = txt.cuda(), img.cuda(), audio.cuda()
+        mask, segment = mask.cuda(), segment.cuda()
+        poster = poster.cuda()
+        metadata = metadata.cuda()
+        if gmu_gate:
+            out, gates = model(txt, mask, segment, img, audio, poster, metadata, gmu_gate)
+        else:
+            out = model(txt, mask, segment, img, audio, poster, metadata)
     elif args.model in ["mmtrvpa"]:
         txt, img, audio = txt.cuda(), img.cuda(), audio.cuda()
         mask, segment = mask.cuda(), segment.cuda()

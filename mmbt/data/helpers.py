@@ -67,7 +67,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -120,14 +120,20 @@ def collate_fn(batch, args):
     audio = None
     metadata = None
     if args.task == "moviescope":
-        if args.model == "mmtrvpa":
+        if args.model in ["mmtrvpa", "mmtrvpapm"]:
             img_lens = [row[4].shape[1] for row in batch]
             img_min_len = min(img_lens)
             audio = torch.stack([row[4][..., :img_min_len] for row in batch])
         if args.visual in ["poster", "both"]:
-            poster = torch.stack([row[4] for row in batch])
-        if args.model == "mmtrvppm":
-            metadata = torch.stack([row[5] for row in batch])
+            if args.model == "mmtrvpapm":
+                poster = torch.stack([row[5] for row in batch])
+            else:
+                poster = torch.stack([row[4] for row in batch])
+        if args.model in ["mmtrvppm", "mmtrvpapm"]:
+            if args.model == "mmtrvpapm":
+                metadata = torch.stack([row[6] for row in batch])
+            else:
+                metadata = torch.stack([row[5] for row in batch])
 
     if args.task_type == "multilabel":
         # Multilabel case
@@ -153,6 +159,8 @@ def collate_fn(batch, args):
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio
         elif args.model == "mmtrvppm":
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster, metadata
+        elif args.model == "mmtrvpapm":
+            return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio, poster, metadata
         else:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster
     else:
@@ -167,7 +175,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )
