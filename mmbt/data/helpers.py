@@ -67,7 +67,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrva", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -92,24 +92,28 @@ def get_vocab(args):
 
 
 def collate_fn(batch, args):
-
-    lens = [len(row[0]) for row in batch]
-    bsz, max_seq_len = len(batch), max(lens)
-
-    if args.model == "mmbt3":
-        mm_max_seq_len = args.max_seq_len - (args.num_image_embeds+2) - (max_seq_len+1)
-        mm_seq_len = min(mm_max_seq_len, max_seq_len+args.num_image_embeds)
-        mm_seq_len = max(0, mm_seq_len)
-        mask_tensor = torch.zeros(bsz, max_seq_len+1).long()
-        mm_mask_tensor = torch.zeros(bsz, mm_seq_len).long()
-    else:
-        mask_tensor = torch.zeros(bsz, max_seq_len).long()
     
-    text_tensor = torch.zeros(bsz, max_seq_len).long()
-    segment_tensor = torch.zeros(bsz, max_seq_len).long()
+    bsz = len(batch)
+    
+    text_tensor = segment_tensor = mask_tensor = None
+    if args.model not in ["mmtrva"]:
+        lens = [len(row[0]) for row in batch]
+        max_seq_len = max(lens)
+
+        if args.model == "mmbt3":
+            mm_max_seq_len = args.max_seq_len - (args.num_image_embeds+2) - (max_seq_len+1)
+            mm_seq_len = min(mm_max_seq_len, max_seq_len+args.num_image_embeds)
+            mm_seq_len = max(0, mm_seq_len)
+            mask_tensor = torch.zeros(bsz, max_seq_len+1).long()
+            mm_mask_tensor = torch.zeros(bsz, mm_seq_len).long()
+        else:
+            mask_tensor = torch.zeros(bsz, max_seq_len).long()
+
+        text_tensor = torch.zeros(bsz, max_seq_len).long()
+        segment_tensor = torch.zeros(bsz, max_seq_len).long()
 
     img_tensor = None
-    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtadapter"] or args.visual in ["video", "both"]:
+    if args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrva", "mmtrvpp", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtadapter"] or args.visual in ["video", "both"]:
         img_tensor = torch.stack([row[2] for row in batch])
         
     genres = None
@@ -120,7 +124,7 @@ def collate_fn(batch, args):
     audio = None
     metadata = None
     if args.task == "moviescope":
-        if args.model in ["mmtrvpa", "mmtrvpapm"]:
+        if args.model in ["mmtrva", "mmtrvpa", "mmtrvpapm"]:
             img_lens = [row[4].shape[1] for row in batch]
             img_min_len = min(img_lens)
             audio = torch.stack([row[4][..., :img_min_len] for row in batch])
@@ -141,21 +145,22 @@ def collate_fn(batch, args):
     else:
         # Single Label case
         tgt_tensor = torch.cat([row[3] for row in batch]).long()
-
-    for i_batch, (input_row, length) in enumerate(zip(batch, lens)):
-        tokens, segment = input_row[:2]
-        text_tensor[i_batch, :length] = tokens
-        segment_tensor[i_batch, :length] = segment
-        if args.model == "mmbt3":
-            mask_tensor[i_batch, :length+1] = 1
-            mm_mask_tensor[i_batch, :length+args.num_image_embeds] = 1
-        else:
-            mask_tensor[i_batch, :length] = 1
+    
+    if args.model not in ["mmtrva"]:
+        for i_batch, (input_row, length) in enumerate(zip(batch, lens)):
+            tokens, segment = input_row[:2]
+            text_tensor[i_batch, :length] = tokens
+            segment_tensor[i_batch, :length] = segment
+            if args.model == "mmbt3":
+                mask_tensor[i_batch, :length+1] = 1
+                mm_mask_tensor[i_batch, :length+args.num_image_embeds] = 1
+            else:
+                mask_tensor[i_batch, :length] = 1
     
     if args.model == "mmbt3":
         return text_tensor, segment_tensor, mask_tensor, mm_mask_tensor, img_tensor, tgt_tensor, genres
     elif args.task == "moviescope":
-        if args.model == "mmtrvpa":
+        if args.model in ["mmtrva", "mmtrvpa"]:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio
         elif args.model == "mmtrvppm":
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster, metadata
@@ -175,7 +180,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrva", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )

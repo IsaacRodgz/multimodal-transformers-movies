@@ -64,39 +64,41 @@ class JsonlDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        if self.args.task == "mpaa":
-            sentence = self.tokenizer(self.data[index]["script"])
-            segment = torch.zeros(len(sentence))
-        elif self.args.task == "moviescope":
-            sentence = (
-                self.text_start_token
-                + self.tokenizer(self.data[index]["synopsis"])[:(self.args.max_seq_len - 1)]
-            )
-            segment = torch.zeros(len(sentence))
-        elif self.args.task == "vsnli":
-            sent1 = self.tokenizer(self.data[index]["sentence1"])
-            sent2 = self.tokenizer(self.data[index]["sentence2"])
-            truncate_seq_pair(sent1, sent2, self.args.max_seq_len - 3)
-            sentence = self.text_start_token + sent1 + ["[SEP]"] + sent2 + ["[SEP]"]
-            segment = torch.cat(
-                [torch.zeros(2 + len(sent1)), torch.ones(len(sent2) + 1)]
-            )
-        elif self.args.model == "mmbt3":
-            sentence = self.tokenizer(self.data[index]["text"])[:(self.max_seq_len - 3)] # -2 for [CLS] and [SEP] tokens
-            segment = torch.zeros(len(sentence))
-        else:
-            sentence = (
-                self.text_start_token
-                + self.tokenizer(self.data[index]["text"])[:(self.args.max_seq_len - 1)]
-            )
-            segment = torch.zeros(len(sentence))
+        sentence = segment = None
+        if self.args.model not in ["mmtrva"]:
+            if self.args.task == "mpaa":
+                sentence = self.tokenizer(self.data[index]["script"])
+                segment = torch.zeros(len(sentence))
+            elif self.args.task == "moviescope":
+                sentence = (
+                    self.text_start_token
+                    + self.tokenizer(self.data[index]["synopsis"])[:(self.args.max_seq_len - 1)]
+                )
+                segment = torch.zeros(len(sentence))
+            elif self.args.task == "vsnli":
+                sent1 = self.tokenizer(self.data[index]["sentence1"])
+                sent2 = self.tokenizer(self.data[index]["sentence2"])
+                truncate_seq_pair(sent1, sent2, self.args.max_seq_len - 3)
+                sentence = self.text_start_token + sent1 + ["[SEP]"] + sent2 + ["[SEP]"]
+                segment = torch.cat(
+                    [torch.zeros(2 + len(sent1)), torch.ones(len(sent2) + 1)]
+                )
+            elif self.args.model == "mmbt3":
+                sentence = self.tokenizer(self.data[index]["text"])[:(self.max_seq_len - 3)] # -2 for [CLS] and [SEP] tokens
+                segment = torch.zeros(len(sentence))
+            else:
+                sentence = (
+                    self.text_start_token
+                    + self.tokenizer(self.data[index]["text"])[:(self.args.max_seq_len - 1)]
+                )
+                segment = torch.zeros(len(sentence))
 
-        sentence = torch.LongTensor(
-            [
-                self.vocab.stoi[w] if w in self.vocab.stoi else self.vocab.stoi["[UNK]"]
-                for w in sentence
-            ]
-        )
+            sentence = torch.LongTensor(
+                [
+                    self.vocab.stoi[w] if w in self.vocab.stoi else self.vocab.stoi["[UNK]"]
+                    for w in sentence
+                ]
+            )
 
         if self.args.task_type == "multilabel":
             label = torch.zeros(self.n_classes)
@@ -109,7 +111,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrva", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -184,7 +186,7 @@ class JsonlDataset(Dataset):
                 '''
                 
         audio = None
-        if self.args.model in ["mmtrvpa", "mmtrvpapm"]:
+        if self.args.model in ["mmtrva", "mmtrvpa", "mmtrvpapm"]:
             if self.args.orig_d_a == 96:
                 file = open(os.path.join(self.data_dir, 'Melspectrogram', f'{str(self.data[index]["id"])}.p'), 'rb')
                 data = pickle.load(file, encoding='bytes')
@@ -216,7 +218,7 @@ class JsonlDataset(Dataset):
         if self.args.task == "mpaa":
             return sentence, segment, image, label, genres
         elif self.args.task == "moviescope":
-            if self.args.model == "mmtrvpa":
+            if self.args.model in ["mmtrva", "mmtrvpa"]:
                 return sentence, segment, image, label, audio
             elif self.args.model == "mmtrvppm":
                 return sentence, segment, image, label, poster, metadata
