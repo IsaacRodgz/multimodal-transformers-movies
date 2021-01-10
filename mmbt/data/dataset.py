@@ -111,7 +111,7 @@ class JsonlDataset(Dataset):
             )
 
         image = None
-        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrva", "mmtrvap", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+        if self.args.model in ["img", "concatbow", "concatbow16", "gmu", "concatbert", "mmbt", "mmtr", "mmtrv", "mmtrva", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
             '''
             # Extracted vgg16 features
             if self.data[index]["img"]:
@@ -186,7 +186,7 @@ class JsonlDataset(Dataset):
                 '''
                 
         audio = None
-        if self.args.model in ["mmtrva", "mmtrvap", "mmtrvpa", "mmtrvpapm"]:
+        if self.args.model in ["mmtrva", "mmtrvap", "mmtrvapt", "mmtrvpa", "mmtrvpapm"]:
             if self.args.orig_d_a == 96:
                 file = open(os.path.join(self.data_dir, 'Melspectrogram', f'{str(self.data[index]["id"])}.p'), 'rb')
                 data = pickle.load(file, encoding='bytes')
@@ -224,7 +224,7 @@ class JsonlDataset(Dataset):
                 return sentence, segment, image, label, poster, metadata
             elif self.args.model == "mmtrvpapm":
                 return sentence, segment, image, label, audio, poster, metadata
-            elif self.args.model == "mmtrvap":
+            elif self.args.model in ["mmtrvap", "mmtrvapt"]:
                 return sentence, segment, image, label, audio, poster
             else:
                 return sentence, segment, image, label, poster
