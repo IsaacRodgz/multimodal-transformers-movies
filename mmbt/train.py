@@ -58,12 +58,12 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrv", "mmtrva", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvpa", "mmtrvppm", "mmtrvpapm", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrv", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvpa", "mmtrvppm", "mmtrvpapm", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
     parser.add_argument("--num_images", type=int, default=8)
-    parser.add_argument("--visual", type=str, default="poster", choices=["poster", "video", "both"])
+    parser.add_argument("--visual", type=str, default="poster", choices=["poster", "video", "both", "none"])
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--savedir", type=str, default="/path/to/save_dir/")
     parser.add_argument("--seed", type=int, default=123)
@@ -282,7 +282,9 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         if args.task == "mpaa":
             txt, segment, mask, img, tgt, genres = batch
         elif args.task == "moviescope":
-            if args.model in ["mmtrva", "mmtrvpa"]:
+            if args.model == "mmtrta":
+                txt, segment, mask, audio, tgt = batch
+            elif args.model in ["mmtrva", "mmtrvpa"]:
                 if args.model == "mmtrvpa":
                     txt, segment, mask, img, tgt, audio = batch
                 elif args.model == "mmtrva":
@@ -332,6 +334,13 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
             out, gates = model(txt, mask, segment, img, gmu_gate)
         else:
             out = model(txt, mask, segment, img)
+    elif args.model == "mmtrta":
+        txt, mask, segment = txt.cuda(), mask.cuda(), segment.cuda()
+        audio = audio.cuda()
+        if gmu_gate:
+            out, gates = model(txt, mask, segment, audio, gmu_gate)
+        else:
+            out = model(txt, mask, segment, audio)
     elif args.model == "mmtrva":
         img, audio = img.cuda(), audio.cuda()
         if gmu_gate:
