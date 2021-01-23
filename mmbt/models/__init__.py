@@ -17,7 +17,7 @@ from mmbt.models.mmbtadapter import MultimodalBertAdapterClf
 from mmbt.models.mmbtadapterm import MultimodalBertAdapterMClf, MultimodalBertAdapterMTropesClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
-from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerGMUMoviescopeVidTextClf, MMTransformerGMUMoviescopeVidAudClf, MMTransformerConcatMoviescopeVidAudClf, MMTransformerConcatMoviescopeTxtAudClf, MMTransformerGMUMoviescopeVidAudPosterClf, MMTransformerConcatMoviescopeVidAudPosterClf, MMTransformerGMUMoviescopeVidAudPosterTxtClf, MMTransformerConcatMoviescopeVidAudPosterTxtClf, MMTransformerGMUMoviescopeClf, MMTransformerConcatMoviescopeClf, MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMU4MoviescopeClf, MMTransformerConcat4MoviescopeClf, MMTransformerConcat5MoviescopeClf, MMTransformerGMU5MoviescopeClf
+from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, MMTransformerMoviescopeClf, MMTransformerGMUMoviescopeVidTextClf, MMTransformerGMUMoviescopeVidAudClf, MMTransformerConcatMoviescopeVidAudClf, MMTransformerGMUMoviescopeTxtAudClf, MMTransformerConcatMoviescopeTxtAudClf, MMTransformerGMUMoviescopeVidAudPosterClf, MMTransformerConcatMoviescopeVidAudPosterClf, MMTransformerGMUMoviescopeVidAudPosterTxtClf, MMTransformerConcatMoviescopeVidAudPosterTxtClf, MMTransformerGMUMoviescopeClf, MMTransformerConcatMoviescopeClf, MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMU4MoviescopeClf, MMTransformerConcat4MoviescopeClf, MMTransformerConcat5MoviescopeClf, MMTransformerGMU5MoviescopeClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
@@ -41,7 +41,7 @@ MODELS = {
     "mmtr": TransformerVideoClf,
     "mmtrv": MMTransformerMoviescopeClf, # text-video (MMTransformerGMUMoviescopeVidTextClf)
     "mmtrva": MMTransformerConcatMoviescopeVidAudClf, # video-audio (no text) (MMTransformerGMUMoviescopeVidAudClf)
-    "mmtrta": MMTransformerConcatMoviescopeTxtAudClf, # plot-audio (MMTransformerGMUMoviescopeTxtAudClf)
+    "mmtrta": MMTransformerGMUMoviescopeTxtAudClf, # plot-audio (MMTransformerConcatMoviescopeTxtAudClf)
     "mmtrvap": MMTransformerConcatMoviescopeVidAudPosterClf, # video-audio-poster (no text) (MMTransformerGMUMoviescopeVidAudPosterClf)
     "mmtrvapt": MMTransformerConcatMoviescopeVidAudPosterTxtClf, # video-audio-poster-plot (MMTransformerGMUMoviescopeVidAudPosterTxtClf)
     "mmtrvpp": MMTransformerConcatMoviescopeClf, # video-plot-poster (MMTransformerGMUMoviescopeClf)
