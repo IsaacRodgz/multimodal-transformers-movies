@@ -3157,7 +3157,7 @@ class MMTransformerGMU5IntraMoviescopeClf(nn.Module):
         """
         Construct a MulT model for Text, Video frames, Audio spectrogram, poster and metadata with Concatenation late fusion.
         """
-        super(MMTransformerGMU5MoviescopeClf, self).__init__()
+        super(MMTransformerGMU5IntraMoviescopeClf, self).__init__()
         self.args = args
         self.orig_d_l, self.orig_d_v, self.orig_d_a, self.orig_d_m = args.orig_d_l, args.orig_d_v, args.orig_d_a, 312
         self.d_l, self.d_a, self.d_v, self.d_m = 768, 768, 768, 768
@@ -3204,7 +3204,7 @@ class MMTransformerGMU5IntraMoviescopeClf(nn.Module):
         self.out_layer = nn.Linear(self.combined_dim, output_dim)
         
         # GMU layer for fusing text and image information
-        self.gmu = TextShifting5Layer(self.d_l*2, self.d_v*2, self.d_v*2, self.d_v, self.d_m, self.d_l)
+        self.gmu = TextShifting5Layer(self.d_l, self.d_v, self.d_v, self.d_v, self.d_m, self.d_l)
         
     def get_network(self, self_type='l', layers=-1):
         if self_type in ['l', 'al', 'vl']:
