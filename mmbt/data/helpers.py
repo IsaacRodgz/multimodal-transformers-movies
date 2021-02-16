@@ -135,6 +135,8 @@ def collate_fn(batch, args):
         if args.visual in ["poster", "both"]:
             if args.model in ["mmtrvap", "mmtrvapt", "mmtrvpapm"]:
                 poster = torch.stack([row[5] for row in batch])
+            elif args.model in ["bert"]:
+                pass
             else:
                 poster = torch.stack([row[4] for row in batch])
         if args.model in ["mmtrvppm", "mmtrvpapm"]:
@@ -145,7 +147,10 @@ def collate_fn(batch, args):
 
     if args.task_type == "multilabel":
         # Multilabel case
-        tgt_tensor = torch.stack([row[3] for row in batch])
+        if args.model in ["bert"]:
+            tgt_tensor = torch.stack([row[2] for row in batch])
+        else:
+            tgt_tensor = torch.stack([row[3] for row in batch])
     else:
         # Single Label case
         tgt_tensor = torch.cat([row[3] for row in batch]).long()
@@ -174,6 +179,8 @@ def collate_fn(batch, args):
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio, poster, metadata
         elif args.model in ["mmtrvap", "mmtrvapt"]:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio, poster
+        elif args.model in ["bert"]:
+            return text_tensor, segment_tensor, mask_tensor, tgt_tensor
         else:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster
     else:

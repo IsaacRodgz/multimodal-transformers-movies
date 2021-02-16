@@ -228,6 +228,8 @@ class JsonlDataset(Dataset):
                 return sentence, segment, image, label, audio, poster, metadata
             elif self.args.model in ["mmtrvap", "mmtrvapt"]:
                 return sentence, segment, image, label, audio, poster
+            elif self.args.model in ["bert", "bow"]:
+                return sentence, segment, label
             else:
                 return sentence, segment, image, label, poster
         else:

@@ -297,6 +297,8 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
                 _, _, _, img, tgt, audio, poster = batch
             elif args.model == "mmtrvapt":
                 txt, segment, mask, img, tgt, audio, poster = batch
+            elif args.model == "bert":
+                txt, segment, mask, tgt = batch
             else:
                 txt, segment, mask, img, tgt, poster = batch
         else:
