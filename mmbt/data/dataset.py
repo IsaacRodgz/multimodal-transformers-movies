@@ -186,7 +186,7 @@ class JsonlDataset(Dataset):
                 '''
                 
         audio = None
-        if self.args.model in ["mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpa", "mmtrvpapm"]:
+        if self.args.model in ["mmtra", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpa", "mmtrvpapm"]:
             if self.args.orig_d_a == 96:
                 file = open(os.path.join(self.data_dir, 'Melspectrogram', f'{str(self.data[index]["id"])}.p'), 'rb')
                 data = pickle.load(file, encoding='bytes')
@@ -220,7 +220,7 @@ class JsonlDataset(Dataset):
         elif self.args.task == "moviescope":
             if self.args.model in ["mmtrta"]:
                 return sentence, segment, audio, label
-            if self.args.model in ["mmtrva", "mmtrvpa"]:
+            if self.args.model in ["mmtra", "mmtrva", "mmtrvpa"]:
                 return sentence, segment, image, label, audio
             elif self.args.model == "mmtrvppm":
                 return sentence, segment, image, label, poster, metadata

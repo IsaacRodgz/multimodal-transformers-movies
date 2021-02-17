@@ -2177,7 +2177,7 @@ class TransformerClf(nn.Module):
 class TransformerVideoClf(nn.Module):
     def __init__(self, args):
         """
-        Construct a MulT model that processes only (V -> L) or (L -> V).
+        Construct a Transformer Encoder with Video input only
         """
         super(TransformerVideoClf, self).__init__()
         self.args = args
@@ -2242,6 +2242,84 @@ class TransformerVideoClf(nn.Module):
         proj_x_v = proj_x_v.permute(2, 0, 1)
 
         h_ls = self.trans_v_mem(proj_x_v)
+        if type(h_ls) == tuple:
+            h_ls = h_ls[0]
+        last_h_l = last_hs = h_ls[-1]   # Take the last output for prediction
+                
+        # A residual block
+        last_hs_proj = self.proj2(F.dropout(F.relu(self.proj1(last_hs)), p=self.out_dropout, training=self.training))
+        last_hs_proj += last_hs
+        
+        output = self.out_layer(last_hs_proj)
+        return output
+
+class TransformerAudioClf(nn.Module):
+    def __init__(self, args):
+        """
+        Construct a Transformer Encoder with Audio input only
+        """
+        super(TransformerAudioClf, self).__init__()
+        self.args = args
+        self.orig_d_l, self.orig_d_a = args.orig_d_l, args.orig_d_a
+        self.d_l, self.d_a, self.d_v = 768, 768, 768
+        self.aonly = args.aonly
+        self.lonly = args.lonly
+        self.num_heads = args.num_heads
+        self.layers = args.layers
+        self.attn_dropout = args.attn_dropout
+        self.attn_dropout_a = args.attn_dropout_a
+        self.relu_dropout = args.relu_dropout
+        self.res_dropout = args.res_dropout
+        self.out_dropout = args.out_dropout
+        self.embed_dropout = args.embed_dropout
+        self.attn_mask = args.attn_mask
+
+        combined_dim = self.d_a
+        output_dim = args.n_classes
+        
+        self.audio_enc = AudioEncoder(args)
+
+        # 1. Temporal convolutional layers
+        self.proj_a = nn.Conv1d(self.orig_d_a, self.d_a, kernel_size=1, padding=0, bias=False)
+
+        # 3. Self Attentions (Could be replaced by LSTMs, GRUs, etc.)
+        #    [e.g., self.trans_x_mem = nn.LSTM(self.d_x, self.d_x, 1)
+        self.trans_a_mem = self.get_network(self_type='a_mem', layers=8)
+       
+        # Projection layers
+        self.proj1 = nn.Linear(combined_dim, combined_dim)
+        self.proj2 = nn.Linear(combined_dim, combined_dim)
+        self.out_layer = nn.Linear(combined_dim, output_dim)
+
+    def get_network(self, self_type='l', layers=-1):
+        if self_type in ['l', 'al']:
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
+        elif self_type in ['a', 'la']:
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout_a
+        elif self_type == 'l_mem':
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
+        elif self_type == 'a_mem':
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout_a
+        else:
+            raise ValueError("Unknown network type")
+        
+        return TransformerEncoder(embed_dim=embed_dim,
+                                  num_heads=self.num_heads,
+                                  layers=max(self.layers, layers),
+                                  attn_dropout=attn_dropout,
+                                  relu_dropout=self.relu_dropout,
+                                  res_dropout=self.res_dropout,
+                                  embed_dropout=self.embed_dropout,
+                                  attn_mask=self.attn_mask)
+            
+    def forward(self, audio):
+        x_a = self.audio_enc(audio)
+        
+        # Project the textual/visual/audio features
+        proj_x_a = x_a if self.orig_d_a == self.d_a else self.proj_a(x_a)
+        proj_x_a = proj_x_a.permute(2, 0, 1)
+
+        h_ls = self.trans_a_mem(proj_x_a)
         if type(h_ls) == tuple:
             h_ls = h_ls[0]
         last_h_l = last_hs = h_ls[-1]   # Take the last output for prediction

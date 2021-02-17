@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
@@ -58,7 +58,7 @@ def get_args(parser):
     parser.add_argument("--lr_patience", type=int, default=2)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--max_seq_len", type=int, default=512)
-    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtrv", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvpa", "mmtrvppm", "mmtrvpapm", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"])
+    parser.add_argument("--model", type=str, default="bow", choices=["bow", "img", "bert", "concatbow", "concatbow16", "concatbert", "mmbt", "gmu", "mmtr", "mmtra", "mmtrv", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvpa", "mmtrvppm", "mmtrvpapm", "mmbtp", "mmdbt", "vilbert", "mmbt3", "mmvilbt", "mmbtrating", "mmtrrating", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"])
     parser.add_argument("--n_workers", type=int, default=12)
     parser.add_argument("--name", type=str, default="nameless")
     parser.add_argument("--num_image_embeds", type=int, default=1)
@@ -284,10 +284,10 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         elif args.task == "moviescope":
             if args.model == "mmtrta":
                 txt, segment, mask, audio, tgt = batch
-            elif args.model in ["mmtrva", "mmtrvpa"]:
+            elif args.model in ["mmtrva", "mmtrvpa", "mmtra"]:
                 if args.model == "mmtrvpa":
                     txt, segment, mask, img, tgt, audio = batch
-                elif args.model == "mmtrva":
+                elif args.model in ["mmtra", "mmtrva"]:
                     _, _, _, img, tgt, audio = batch
             elif args.model == "mmtrvppm":
                 txt, segment, mask, img, tgt, poster, metadata = batch
@@ -312,9 +312,12 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     if args.model == "bow":
         txt = txt.cuda()
         out = model(txt)
-    elif args.model == "img":
+    elif args.model in ["img"]:
         img = img.cuda()
         out = model(img)
+    elif args.model in ["mmtra"]:
+        audio = audio.cuda()
+        out = model(audio)
     elif args.model in ["concatbow", "concatbow16", "gmu"]:
         txt, img = txt.to(device), img.to(device)
         out = model(txt, img)

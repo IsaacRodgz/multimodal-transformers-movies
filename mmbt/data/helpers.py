@@ -67,7 +67,7 @@ def get_glove_words(path):
 
 def get_vocab(args):
     vocab = Vocab()
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtra", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         bert_tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=True
         )
@@ -96,7 +96,7 @@ def collate_fn(batch, args):
     bsz = len(batch)
     
     text_tensor = segment_tensor = mask_tensor = None
-    if args.model not in ["mmtrva", "mmtrvap"]:
+    if args.model not in ["mmtra", "mmtrva", "mmtrvap"]:
         lens = [len(row[0]) for row in batch]
         max_seq_len = max(lens)
 
@@ -128,7 +128,7 @@ def collate_fn(batch, args):
             img_lens = [row[2].shape[1] for row in batch]
             img_min_len = min(img_lens)
             audio = torch.stack([row[2][..., :img_min_len] for row in batch])
-        elif args.model in ["mmtrva", "mmtrvap", "mmtrvapt", "mmtrvpa", "mmtrvpapm"]:
+        elif args.model in ["mmtra", "mmtrva", "mmtrvap", "mmtrvapt", "mmtrvpa", "mmtrvpapm"]:
             img_lens = [row[4].shape[1] for row in batch]
             img_min_len = min(img_lens)
             audio = torch.stack([row[4][..., :img_min_len] for row in batch])
@@ -155,7 +155,7 @@ def collate_fn(batch, args):
         # Single Label case
         tgt_tensor = torch.cat([row[3] for row in batch]).long()
     
-    if args.model not in ["mmtrva", "mmtrvap"]:
+    if args.model not in ["mmtra", "mmtrva", "mmtrvap"]:
         for i_batch, (input_row, length) in enumerate(zip(batch, lens)):
             tokens, segment = input_row[:2]
             text_tensor[i_batch, :length] = tokens
@@ -171,7 +171,7 @@ def collate_fn(batch, args):
     elif args.task == "moviescope":
         if args.model in ["mmtrta"]:
             return text_tensor, segment_tensor, mask_tensor, audio, tgt_tensor
-        if args.model in ["mmtrva", "mmtrvpa"]:
+        if args.model in ["mmtra", "mmtrva", "mmtrvpa"]:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio
         elif args.model == "mmtrvppm":
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster, metadata
@@ -195,7 +195,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         else str.split
     )
     '''
-    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
+    if args.model in ["bert", "mmbt", "concatbert", "mmtr", "mmtrv", "mmtra", "mmtrva", "mmtrta", "mmtrvap", "mmtrvapt", "mmtrvpp", "mmtrvppm", "mmtrvpapm", "mmtrvpa", "mmbtp", "vilbert", "mmbt3", "mmvilbt", "mmbtratingtext", "mmbtadapter", "mmbtadapterm"]:
         tokenizer = (
             BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True).tokenize
         )
@@ -279,7 +279,6 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         return train_loader, val_loader, test_loader
     
     else:
-        #import pdb; pdb.set_trace()
         dev_size = int(len(data_all)*0.2)
         train_size = len(data_all)-dev_size
         k = partition_index
