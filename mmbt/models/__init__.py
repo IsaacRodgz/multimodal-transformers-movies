@@ -17,7 +17,7 @@ from mmbt.models.mmbtadapter import MultimodalBertAdapterClf
 from mmbt.models.mmbtadapterm import MultimodalBertAdapterMClf, MultimodalBertAdapterMTropesClf
 from mmbt.models.mmbt3 import MultimodalBertThreeClf
 from mmbt.models.gmu import GMUClf
-from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, TransformerAudioClf, MMTransformerMoviescopeClf, MMTransformerGMUMoviescopeVidTextClf, MMTransformerGMUMoviescopeVidAudClf, MMTransformerConcatMoviescopeVidAudClf, MMTransformerGMUMoviescopeTxtAudClf, MMTransformerConcatMoviescopeTxtAudClf, MMTransformerGMUMoviescopeVidAudPosterClf, MMTransformerConcatMoviescopeVidAudPosterClf, MMTransformerGMUMoviescopeVidAudPosterTxtClf, MMTransformerConcatMoviescopeVidAudPosterTxtClf, MMTransformerGMUMoviescopeClf, MMTransformerConcatMoviescopeClf, MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMU4MoviescopeClf, MMTransformerConcat4MoviescopeClf, MMTransformerConcat5MoviescopeClf, MMTransformerGMU5MoviescopeClf, MMTransformerGMU5IntraMoviescopeClf
+from mmbt.models.mmtr import MMTransformerClf, MMTransformerGMUClf, MMTransformerUniClf, TransformerClf, MMTransformerUniBi, TransformerVideoClf, TransformerAudioClf, MMTransformerMoviescopeClf, MMTransformerGMUMoviescopeVidTextClf, MMTransformerGMUMoviescopeVidAudClf, MMTransformerConcatMoviescopeVidAudClf, MMTransformerGMUMoviescopeTxtAudClf, MMTransformerConcatMoviescopeTxtAudClf, MMTransformerGMUMoviescopeVidAudPosterClf, MMTransformerConcatMoviescopeVidAudPosterClf, MMTransformerGMUMoviescopeVidAudPosterTxtClf, MMTransformerConcatMoviescopeVidAudPosterTxtClf, MMTransformerGMUMoviescopeClf, MMTransformerConcatMoviescopeClf, MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMUNoEncodersClf, MMTransformerGMU4MoviescopeClf, MMTransformerConcat4MoviescopeClf, MMTransformerConcat5MoviescopeClf, MMTransformerGMU5MoviescopeClf, MMTransformerGMU5IntraMoviescopeClf
 from mmbt.models.mmbtp import MultimodalBertTransfClf
 from mmbt.models.mmdbt import MultimodalDistilBertClf
 from mmbt.models.vilbert import VILBertForVLTasks
@@ -46,9 +46,9 @@ MODELS = {
     "mmtrvap": MMTransformerConcatMoviescopeVidAudPosterClf, # video-audio-poster (no text) (MMTransformerGMUMoviescopeVidAudPosterClf)
     "mmtrvapt": MMTransformerConcatMoviescopeVidAudPosterTxtClf, # video-audio-poster-plot (MMTransformerGMUMoviescopeVidAudPosterTxtClf)
     "mmtrvpp": MMTransformerConcatMoviescopeClf, # video-plot-poster (MMTransformerGMUMoviescopeClf)
-    "mmtrvpa": MMTransformerConcatVPAClf, # video-plot-audio (MMTransformerGMUVPAClf)
+    "mmtrvpa": MMTransformerGMUNoEncodersClf, # video-plot-audio (MMTransformerGMUVPAClf, MMTransformerConcatVPAClf)
     "mmtrvppm": MMTransformerConcat4MoviescopeClf, # video-plot-poster-metadata (MMTransformerConcat4MoviescopeClf)
-    "mmtrvpapm": MMTransformerGMU5IntraMoviescopeClf, # video-plot-audio-poster-metadata (MMTransformerGMU5MoviescopeClf) (MMTransformerConcat5MoviescopeClf)
+    "mmtrvpapm": MMTransformerGMU5IntraMoviescopeClf, # video-plot-audio-poster-metadata (MMTransformerGMU5MoviescopeClf, MMTransformerConcat5MoviescopeClf)
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
     "vilbert": VILBertForVLTasks,

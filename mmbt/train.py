@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
@@ -394,7 +394,10 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     elif args.model in ["mmtrvpa"]:
         txt, img, audio = txt.cuda(), img.cuda(), audio.cuda()
         mask, segment = mask.cuda(), segment.cuda()
-        out = model(txt, mask, segment, img, audio)
+        if gmu_gate:
+            out, gates = out = model(txt, mask, segment, img, audio, gmu_gate)
+        else:
+            out = out = model(txt, mask, segment, img, audio)
     elif args.model in ["concatbert", "mmtr", "mmtrrating"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
