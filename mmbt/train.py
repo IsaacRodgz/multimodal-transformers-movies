@@ -395,9 +395,9 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
         txt, img, audio = txt.cuda(), img.cuda(), audio.cuda()
         mask, segment = mask.cuda(), segment.cuda()
         if gmu_gate:
-            out, gates = out = model(txt, mask, segment, img, audio, gmu_gate)
+            out, gates = model(txt, mask, segment, img, audio, gmu_gate)
         else:
-            out = out = model(txt, mask, segment, img, audio)
+            out = model(txt, mask, segment, img, audio)
     elif args.model in ["concatbert", "mmtr", "mmtrrating"]:
         txt, img = txt.cuda(), img.cuda()
         mask, segment = mask.cuda(), segment.cuda()
@@ -579,6 +579,10 @@ def test(args):
         model = get_model(args, config)
     else:
         model = get_model(args)
+    
+    cuda_len = torch.cuda.device_count()
+    if cuda_len > 1:
+        model = nn.DataParallel(model)
 
     criterion = get_criterion(args)
     optimizer = get_optimizer(model, args)
