@@ -171,7 +171,7 @@ def collate_fn(batch, args):
     elif args.task == "moviescope":
         if args.model in ["mmtrta"]:
             return text_tensor, segment_tensor, mask_tensor, audio, tgt_tensor
-        if args.model in ["mmtra", "mmtrva", "mmtrvpa"]:
+        elif args.model in ["mmtra", "mmtrva", "mmtrvpa"]:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio
         elif args.model == "mmtrvppm":
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster, metadata
