@@ -1,3 +1,4 @@
+import math
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -101,6 +102,48 @@ class BertEncoder(nn.Module):
             attention_mask=mask,
         )
         return encoded_layers
+
+
+class BahdanauAttention(nn.Module):
+    """Implements Bahdanau (MLP) attention"""
+    
+    def __init__(self, hidden_size):
+        super(BahdanauAttention, self).__init__()
+
+        self.key_layer = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.energy_layer = nn.Linear(hidden_size, 1, bias=False)
+        
+        self.query = nn.Parameter(torch.rand(hidden_size))
+        stdv = 1. / math.sqrt(self.query.size(0))
+        self.query.data.normal_(mean=0, std=stdv)
+        
+        # to store attention scores
+        self.alphas = None
+        
+    def forward(self, keys, values):
+        #import pdb; pdb.set_trace()
+        # We first project the keys (the encoder hidden states)
+        keys_proj = self.key_layer(keys)
+        
+        # Calculate scores.
+        scores = self.energy_layer(torch.tanh(self.query + keys_proj))
+        scores = scores.squeeze(2).unsqueeze(1)
+        
+        # Mask out invalid positions.
+        # The mask marks valid positions so we invert it using `mask & 0`.
+        #scores.data.masked_fill_(mask == 0, -float('inf'))
+        
+        # Turn scores to probabilities.
+        alphas = F.softmax(scores, dim=-1)
+        self.alphas = alphas        
+        
+        # The context vector is the weighted sum of the values.
+        context = torch.bmm(alphas, values)
+        
+        # context shape: [B, 1, values_dim], alphas shape: [B, 1, seq_len]
+        context = context.squeeze(1)
+        alphas = alphas.squeeze(1)
+        return context, alphas
 
     
 class GatedMultimodalLayer(nn.Module):
@@ -3524,3 +3567,161 @@ class MMTransformerGMUNoEncodersClf(nn.Module):
             return self.out_layer(last_hs_proj), z
         else:
             return self.out_layer(last_hs_proj)
+
+class MMTransformerHierarchicalMoviescopeClf(nn.Module):
+    def __init__(self, args):
+        """
+        Construct a MulT model for Text, Video frames, Audio spectrogram, poster and metadata with Concatenation late fusion.
+        """
+        super(MMTransformerHierarchicalMoviescopeClf, self).__init__()
+        self.args = args
+        self.orig_d_l, self.orig_d_v, self.orig_d_a, self.orig_d_m = args.orig_d_l, args.orig_d_v, args.orig_d_a, 312
+        self.d_l, self.d_a, self.d_v, self.d_m = 768, 768, 768, 768
+        self.vonly = args.vonly
+        self.lonly = args.lonly
+        self.aonly = args.aonly
+        self.num_heads = args.num_heads
+        self.layers = args.layers
+        self.attn_dropout = args.attn_dropout
+        self.attn_dropout_v = args.attn_dropout_v
+        self.attn_dropout_a = args.attn_dropout_a
+        self.relu_dropout = args.relu_dropout
+        self.res_dropout = args.res_dropout
+        self.out_dropout = args.out_dropout
+        self.embed_dropout = args.embed_dropout
+        self.attn_mask = args.attn_mask
+        
+        self.enc = BertEncoder(args)
+        self.audio_enc = AudioEncoder(args)
+        
+        # 0. Project poster feature to 768 dim
+        #self.proj_poster = nn.Linear(self.orig_d_v, self.d_v)
+        
+        # 0. Project metadata feature to 768 dim
+        #self.proj_metadata = nn.Linear(self.orig_d_m, self.d_m)
+        
+        output_dim = args.n_classes        # This is actually not a hyperparameter :-)
+
+        # 1. Temporal convolutional layers
+        self.proj_l = nn.Conv1d(self.orig_d_l, self.d_l, kernel_size=1, padding=0, bias=False)
+        self.proj_v = nn.Conv1d(self.orig_d_v, self.d_v, kernel_size=1, padding=0, bias=False)
+        self.proj_a = nn.Conv1d(self.orig_d_a, self.d_a, kernel_size=1, padding=0, bias=False)
+        
+        # 3. Self Attentions (Could be replaced by LSTMs, GRUs, etc.)
+        #    [e.g., self.trans_x_mem = nn.LSTM(self.d_x, self.d_x, 1)
+        self.trans_l_mem = self.get_network(self_type='l_mem', layers=3)
+        self.trans_v_mem = self.get_network(self_type='v_mem', layers=3)
+        self.trans_a_mem = self.get_network(self_type='a_mem', layers=3)
+       
+        # Projection layers
+        self.combined_dim = 768
+        self.proj1 = nn.Linear(self.combined_dim, self.combined_dim)
+        self.proj2 = nn.Linear(self.combined_dim, self.combined_dim)
+        self.out_layer = nn.Linear(self.combined_dim, output_dim)
+        
+        # GMU layer for fusing text and image information
+        #self.gmu = TextShifting5Layer(self.d_l, self.d_v, self.d_v, self.d_v, self.d_m, self.d_l)
+        
+        # Intra Modality Attention
+        self.l_att = BahdanauAttention(self.d_l)
+        self.v_att = BahdanauAttention(self.d_v)
+        self.a_att = BahdanauAttention(self.d_a)
+        
+        # Text-Video Attention
+        self.lv_att = BahdanauAttention(self.d_l)
+        
+        # Text-Audio Attention
+        self.la_att = BahdanauAttention(self.d_l)
+        
+        # Text-Video-Audio Attention
+        self.lva_att = BahdanauAttention(self.d_l)
+        
+    def get_network(self, self_type='l', layers=-1):
+        if self_type in ['l', 'al', 'vl']:
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
+        elif self_type in ['a', 'la', 'va']:
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout_a
+        elif self_type in ['v', 'lv', 'av']:
+            embed_dim, attn_dropout = self.d_v, self.attn_dropout_v
+        elif self_type == 'l_mem':
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
+        elif self_type == 'a_mem':
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout
+        elif self_type == 'v_mem':
+            embed_dim, attn_dropout = self.d_v, self.attn_dropout
+        else:
+            raise ValueError("Unknown network type")
+        
+        return TransformerEncoder(embed_dim=embed_dim,
+                                  num_heads=self.num_heads,
+                                  layers=max(self.layers, layers),
+                                  attn_dropout=attn_dropout,
+                                  relu_dropout=self.relu_dropout,
+                                  res_dropout=self.res_dropout,
+                                  embed_dropout=self.embed_dropout,
+                                  attn_mask=self.attn_mask)
+            
+    def forward(self, txt, mask, segment, img, audio):
+        """
+        text, audio, and vision should have dimension [batch_size, seq_len, n_features]
+        """
+        #print(audio.shape)
+        x_l = self.enc(txt, mask, segment)
+        x_l = F.dropout(x_l.transpose(1, 2), p=self.embed_dropout, training=self.training)
+        x_v = img.transpose(1, 2)
+        x_a = self.audio_enc(audio)
+
+        # Project the textual/visual/audio features
+        proj_x_l = x_l if self.orig_d_l == self.d_l else self.proj_l(x_l)
+        proj_x_a = x_a if self.orig_d_a == self.d_a else self.proj_a(x_a)
+        proj_x_v = x_v if self.orig_d_v == self.d_v else self.proj_v(x_v)
+        proj_x_l = proj_x_l.permute(2, 0, 1)
+        proj_x_a = proj_x_a.permute(2, 0, 1)
+        proj_x_v = proj_x_v.permute(2, 0, 1)
+
+        if self.lonly:
+            # (V,A) --> L
+            h_ls = self.trans_l_mem(proj_x_l)
+            if type(h_ls) == tuple:
+                h_ls = h_ls[0]
+            #last_h_l = last_hs = h_ls[-1]   # Take the last output for prediction
+        # L Attention
+        h_ls = h_ls.transpose(0,1)
+        h_l, _ = self.l_att(h_ls, h_ls)
+
+        if self.aonly:
+            # (L,V) --> A
+            h_as = self.trans_a_mem(proj_x_a)
+            if type(h_as) == tuple:
+                h_as = h_as[0]
+            #last_h_a = last_hs = h_as[-1]
+        # A Attention
+        h_as = h_as.transpose(0,1)
+        h_a, _ = self.a_att(h_as, h_as)
+
+        if self.vonly:
+            # (L,A) --> V
+            h_vs = self.trans_v_mem(proj_x_v)
+            if type(h_vs) == tuple:
+                h_vs = h_vs[0]
+            #last_h_v = last_hs = h_vs[-1]
+        # V Attention
+        h_vs = h_vs.transpose(0,1)
+        h_v, _ = self.v_att(h_vs, h_vs)
+                
+        # Hierarchical Attention
+        h_lv_cat = torch.stack([h_l, h_v], dim=1)
+        h_lv, _ = self.lv_att(h_lv_cat, h_lv_cat)
+        #import pdb; pdb.set_trace()
+        
+        h_la_cat = torch.stack([h_l, h_a], dim=1)
+        h_la, _ = self.lv_att(h_la_cat, h_la_cat)
+        
+        h_lva_cat = torch.stack([h_lv, h_la], dim=1)
+        h_lva, _ = self.lva_att(h_lva_cat, h_lva_cat)
+                
+        # A residual block
+        last_hs_proj = self.proj2(F.dropout(F.relu(self.proj1(h_lva)), p=self.out_dropout, training=self.training))
+        last_hs_proj += h_lva
+                
+        return self.out_layer(last_hs_proj)
