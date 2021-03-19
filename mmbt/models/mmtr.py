@@ -3568,6 +3568,288 @@ class MMTransformerGMUNoEncodersClf(nn.Module):
         else:
             return self.out_layer(last_hs_proj)
 
+
+class MMTransformerGMUHierarchical3BlocksNoEncodersClf(nn.Module):
+    def __init__(self, args):
+        """
+        Construct a MulT model for Text, Video frames and Audio spectrogram with Concat late fusion.
+        """
+        super(MMTransformerGMUHierarchical3BlocksNoEncodersClf, self).__init__()
+        self.args = args
+        self.orig_d_l, self.orig_d_v, self.orig_d_a = args.orig_d_l, args.orig_d_v, args.orig_d_a
+        self.d_l, self.d_a, self.d_v = 768, 768, 768
+        self.vonly = args.vonly
+        self.lonly = args.lonly
+        self.aonly = args.aonly
+        self.num_heads = args.num_heads
+        self.layers = args.layers
+        self.attn_dropout = args.attn_dropout
+        self.attn_dropout_v = args.attn_dropout_v
+        self.attn_dropout_a = args.attn_dropout_a
+        self.relu_dropout = args.relu_dropout
+        self.res_dropout = args.res_dropout
+        self.out_dropout = args.out_dropout
+        self.embed_dropout = args.embed_dropout
+        self.attn_mask = args.attn_mask
+
+        self.enc = BertEncoder(args)
+        self.audio_enc = AudioEncoder(args)
+
+        combined_dim = 768
+        output_dim = args.n_classes        # This is actually not a hyperparameter :-)
+
+        # 1. Temporal convolutional layers
+        self.proj_l = nn.Conv1d(self.orig_d_l, self.d_l, kernel_size=1, padding=0, bias=False)
+        self.proj_v = nn.Conv1d(self.orig_d_v, self.d_v, kernel_size=1, padding=0, bias=False)
+        self.proj_a = nn.Conv1d(self.orig_d_a, self.d_a, kernel_size=1, padding=0, bias=False)
+
+        # 2. Crossmodal Attentions
+        if self.lonly:
+            self.trans_l_with_a = self.get_network(self_type='la')
+            self.trans_l_with_v = self.get_network(self_type='lv')
+            self.trans_l_only = self.get_network(self_type='l_mem')
+        if self.vonly:
+            self.trans_v_with_l = self.get_network(self_type='vl')
+            self.trans_v_with_a = self.get_network(self_type='va')
+            self.trans_v_only = self.get_network(self_type='v_mem')
+        if self.aonly:
+            self.trans_a_with_l = self.get_network(self_type='al')
+            self.trans_a_with_v = self.get_network(self_type='av')
+            self.trans_a_only = self.get_network(self_type='a_mem')
+
+        # Projection layers
+        self.proj1 = nn.Linear(combined_dim, combined_dim)
+        self.proj2 = nn.Linear(combined_dim, combined_dim)
+        self.out_layer = nn.Linear(combined_dim, output_dim)
+        
+        # Intramodal GMU fusion
+        self.gmu_t = TextShifting3Layer(combined_dim, combined_dim, combined_dim, combined_dim)
+        self.gmu_v = TextShifting3Layer(combined_dim, combined_dim, combined_dim, combined_dim)
+        self.gmu_a = TextShifting3Layer(combined_dim, combined_dim, combined_dim, combined_dim)
+        
+        # GMU layer for fusing text and image information
+        self.gmu_all = TextShifting3Layer(combined_dim, combined_dim, combined_dim, combined_dim)
+
+    def get_network(self, self_type='l', layers=-1):
+        if self_type in ['l', 'al', 'vl']:
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
+        elif self_type in ['a', 'la', 'va']:
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout_a
+        elif self_type in ['v', 'lv', 'av']:
+            embed_dim, attn_dropout = self.d_v, self.attn_dropout_v
+        elif self_type == 'l_mem':
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
+        elif self_type == 'a_mem':
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout
+        elif self_type == 'v_mem':
+            embed_dim, attn_dropout = self.d_v, self.attn_dropout
+        else:
+            raise ValueError("Unknown network type")
+
+        return TransformerEncoder(embed_dim=embed_dim,
+                                  num_heads=self.num_heads,
+                                  layers=max(self.layers, layers),
+                                  attn_dropout=attn_dropout,
+                                  relu_dropout=self.relu_dropout,
+                                  res_dropout=self.res_dropout,
+                                  embed_dropout=self.embed_dropout,
+                                  attn_mask=self.attn_mask)
+
+    def forward(self, txt, mask, segment, img, audio, output_gate=False):
+        """
+        text, audio, and vision should have dimension [batch_size, seq_len, n_features]
+        """
+        x_l = self.enc(txt, mask, segment)
+        x_l = F.dropout(x_l.transpose(1, 2), p=self.embed_dropout, training=self.training)
+        x_v = img.transpose(1, 2)
+        x_a = self.audio_enc(audio)
+
+        # Project the textual/visual/audio features
+        proj_x_l = x_l if self.orig_d_l == self.d_l else self.proj_l(x_l)
+        proj_x_a = x_a if self.orig_d_a == self.d_a else self.proj_a(x_a)
+        proj_x_v = x_v if self.orig_d_v == self.d_v else self.proj_v(x_v)
+        proj_x_l = proj_x_l.permute(2, 0, 1)
+        proj_x_a = proj_x_a.permute(2, 0, 1)
+        proj_x_v = proj_x_v.permute(2, 0, 1)
+
+        if self.lonly:
+            # (V,A) --> L
+            h_l_with_as = self.trans_l_with_a(proj_x_l, proj_x_a, proj_x_a)    # Dimension (L, N, d_l)
+            h_l_with_vs = self.trans_l_with_v(proj_x_l, proj_x_v, proj_x_v)    # Dimension (L, N, d_l)
+            h_l_only = self.trans_l_only(proj_x_l, proj_x_l, proj_x_l)
+            last_h_l_only = h_l_only[-1]
+            last_h_la = h_l_with_as[-1]
+            last_h_lv = h_l_with_vs[-1]
+        h_l, _ = self.gmu_t(last_h_la, last_h_lv, last_h_l_only)
+
+        if self.aonly:
+            # (L,V) --> A
+            h_a_with_ls = self.trans_a_with_l(proj_x_a, proj_x_l, proj_x_l)
+            h_a_with_vs = self.trans_a_with_v(proj_x_a, proj_x_v, proj_x_v)
+            h_a_only = self.trans_a_only(proj_x_a, proj_x_a, proj_x_a)
+            last_h_a_only = h_a_only[-1]
+            last_h_al = h_a_with_ls[-1]
+            last_h_av = h_a_with_vs[-1]
+        h_a, _ = self.gmu_t(last_h_al, last_h_av, last_h_a_only)
+
+        if self.vonly:
+            # (L,A) --> V
+            h_v_with_ls = self.trans_v_with_l(proj_x_v, proj_x_l, proj_x_l)
+            h_v_with_as = self.trans_v_with_a(proj_x_v, proj_x_a, proj_x_a)
+            h_v_only = self.trans_v_only(proj_x_v, proj_x_v, proj_x_v)
+            last_h_v_only = h_v_only[-1]
+            last_h_vl = h_v_with_ls[-1]
+            last_h_va = h_v_with_as[-1]
+        h_v, _ = self.gmu_t(last_h_vl, last_h_va, last_h_v_only)
+
+        last_hs, z = self.gmu_all(h_l, h_a, h_v)
+        
+        # A residual block
+        last_hs_proj = self.proj2(F.dropout(F.relu(self.proj1(last_hs)), p=self.out_dropout, training=self.training))
+        last_hs_proj += last_hs
+                
+        if output_gate:
+            return self.out_layer(last_hs_proj), z
+        else:
+            return self.out_layer(last_hs_proj)
+
+
+class MMTransformerGMUHierarchicalNoEncodersClf(nn.Module):
+    def __init__(self, args):
+        """
+        Construct a MulT model for Text, Video frames and Audio spectrogram with Concat late fusion.
+        """
+        super(MMTransformerGMUHierarchicalNoEncodersClf, self).__init__()
+        self.args = args
+        self.orig_d_l, self.orig_d_v, self.orig_d_a = args.orig_d_l, args.orig_d_v, args.orig_d_a
+        self.d_l, self.d_a, self.d_v = 768, 768, 768
+        self.vonly = args.vonly
+        self.lonly = args.lonly
+        self.aonly = args.aonly
+        self.num_heads = args.num_heads
+        self.layers = args.layers
+        self.attn_dropout = args.attn_dropout
+        self.attn_dropout_v = args.attn_dropout_v
+        self.attn_dropout_a = args.attn_dropout_a
+        self.relu_dropout = args.relu_dropout
+        self.res_dropout = args.res_dropout
+        self.out_dropout = args.out_dropout
+        self.embed_dropout = args.embed_dropout
+        self.attn_mask = args.attn_mask
+
+        self.enc = BertEncoder(args)
+        self.audio_enc = AudioEncoder(args)
+
+        combined_dim = 768
+        output_dim = args.n_classes        # This is actually not a hyperparameter :-)
+
+        # 1. Temporal convolutional layers
+        self.proj_l = nn.Conv1d(self.orig_d_l, self.d_l, kernel_size=1, padding=0, bias=False)
+        self.proj_v = nn.Conv1d(self.orig_d_v, self.d_v, kernel_size=1, padding=0, bias=False)
+        self.proj_a = nn.Conv1d(self.orig_d_a, self.d_a, kernel_size=1, padding=0, bias=False)
+
+        # 2. Crossmodal Attentions
+        if self.lonly:
+            self.trans_l_with_a = self.get_network(self_type='la')
+            self.trans_l_with_v = self.get_network(self_type='lv')
+        if self.vonly:
+            self.trans_v_with_l = self.get_network(self_type='vl')
+            self.trans_v_with_a = self.get_network(self_type='va')
+        if self.aonly:
+            self.trans_a_with_l = self.get_network(self_type='al')
+            self.trans_a_with_v = self.get_network(self_type='av')
+
+        # Projection layers
+        self.proj1 = nn.Linear(combined_dim, combined_dim)
+        self.proj2 = nn.Linear(combined_dim, combined_dim)
+        self.out_layer = nn.Linear(combined_dim, output_dim)
+        
+        # Intramodal GMU fusion
+        self.gmu_t = GatedMultimodalLayer(combined_dim, combined_dim, combined_dim)
+        self.gmu_v = GatedMultimodalLayer(combined_dim, combined_dim, combined_dim)
+        self.gmu_a = GatedMultimodalLayer(combined_dim, combined_dim, combined_dim)
+        
+        # GMU layer for fusing text and image information
+        self.gmu_all = TextShifting3Layer(combined_dim, combined_dim, combined_dim, combined_dim)
+
+    def get_network(self, self_type='l', layers=-1):
+        if self_type in ['l', 'al', 'vl']:
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
+        elif self_type in ['a', 'la', 'va']:
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout_a
+        elif self_type in ['v', 'lv', 'av']:
+            embed_dim, attn_dropout = self.d_v, self.attn_dropout_v
+        elif self_type == 'l_mem':
+            embed_dim, attn_dropout = 2*self.d_l, self.attn_dropout
+        elif self_type == 'a_mem':
+            embed_dim, attn_dropout = 2*self.d_a, self.attn_dropout
+        elif self_type == 'v_mem':
+            embed_dim, attn_dropout = 2*self.d_v, self.attn_dropout
+        else:
+            raise ValueError("Unknown network type")
+
+        return TransformerEncoder(embed_dim=embed_dim,
+                                  num_heads=self.num_heads,
+                                  layers=max(self.layers, layers),
+                                  attn_dropout=attn_dropout,
+                                  relu_dropout=self.relu_dropout,
+                                  res_dropout=self.res_dropout,
+                                  embed_dropout=self.embed_dropout,
+                                  attn_mask=self.attn_mask)
+
+    def forward(self, txt, mask, segment, img, audio, output_gate=False):
+        """
+        text, audio, and vision should have dimension [batch_size, seq_len, n_features]
+        """
+        x_l = self.enc(txt, mask, segment)
+        x_l = F.dropout(x_l.transpose(1, 2), p=self.embed_dropout, training=self.training)
+        x_v = img.transpose(1, 2)
+        x_a = self.audio_enc(audio)
+
+        # Project the textual/visual/audio features
+        proj_x_l = x_l if self.orig_d_l == self.d_l else self.proj_l(x_l)
+        proj_x_a = x_a if self.orig_d_a == self.d_a else self.proj_a(x_a)
+        proj_x_v = x_v if self.orig_d_v == self.d_v else self.proj_v(x_v)
+        proj_x_l = proj_x_l.permute(2, 0, 1)
+        proj_x_a = proj_x_a.permute(2, 0, 1)
+        proj_x_v = proj_x_v.permute(2, 0, 1)
+
+        if self.lonly:
+            # (V,A) --> L
+            h_l_with_as = self.trans_l_with_a(proj_x_l, proj_x_a, proj_x_a)    # Dimension (L, N, d_l)
+            h_l_with_vs = self.trans_l_with_v(proj_x_l, proj_x_v, proj_x_v)    # Dimension (L, N, d_l)
+            last_h_la = h_l_with_as[-1]
+            last_h_lv = h_l_with_vs[-1]
+        h_l, _ = self.gmu_t(last_h_la, last_h_lv)
+
+        if self.aonly:
+            # (L,V) --> A
+            h_a_with_ls = self.trans_a_with_l(proj_x_a, proj_x_l, proj_x_l)
+            h_a_with_vs = self.trans_a_with_v(proj_x_a, proj_x_v, proj_x_v)
+            last_h_al = h_a_with_ls[-1]
+            last_h_av = h_a_with_vs[-1]
+        h_a, _ = self.gmu_t(last_h_al, last_h_av)
+
+        if self.vonly:
+            # (L,A) --> V
+            h_v_with_ls = self.trans_v_with_l(proj_x_v, proj_x_l, proj_x_l)
+            h_v_with_as = self.trans_v_with_a(proj_x_v, proj_x_a, proj_x_a)
+            last_h_vl = h_v_with_ls[-1]
+            last_h_va = h_v_with_as[-1]
+        h_v, _ = self.gmu_t(last_h_vl, last_h_va)
+
+        last_hs, z = self.gmu_all(h_l, h_a, h_v)
+        
+        # A residual block
+        last_hs_proj = self.proj2(F.dropout(F.relu(self.proj1(last_hs)), p=self.out_dropout, training=self.training))
+        last_hs_proj += last_hs
+                
+        if output_gate:
+            return self.out_layer(last_hs_proj), z
+        else:
+            return self.out_layer(last_hs_proj)
+
+
 class MMTransformerHierarchicalEncoderOnlyMoviescopeClf(nn.Module):
     def __init__(self, args):
         """
