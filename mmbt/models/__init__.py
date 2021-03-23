@@ -40,6 +40,7 @@ from mmbt.models.mmtr import (MMTransformerClf,
                             MMTransformerGMUVPAClf,
                             MMTransformerConcatVPAClf,
                             MMTransformerGMUNoEncodersClf,
+                            MMTransformerGMU3BlockNoEncodersClf,
                             MMTransformerGMUHierarchicalNoEncodersClf,
                             MMTransformerGMUHierarchical3BlocksNoEncodersClf,
                             MMTransformerGMU4MoviescopeClf,
@@ -77,7 +78,7 @@ MODELS = {
     "mmtrvap": MMTransformerConcatMoviescopeVidAudPosterClf, # video-audio-poster (no text) (MMTransformerGMUMoviescopeVidAudPosterClf)
     "mmtrvapt": MMTransformerConcatMoviescopeVidAudPosterTxtClf, # video-audio-poster-plot (MMTransformerGMUMoviescopeVidAudPosterTxtClf)
     "mmtrvpp": MMTransformerConcatMoviescopeClf, # video-plot-poster (MMTransformerGMUMoviescopeClf)
-    "mmtrvpa": MMTransformerGMUHierarchical3BlocksNoEncodersClf, # video-plot-audio (MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMUNoEncodersClf, MMTransformerHierarchicalEncoderOnlyMoviescopeClf, MMTransformerHierarchicalFullMoviescopeClf, MMTransformerGMUHierarchicalNoEncodersClf)
+    "mmtrvpa": MMTransformerGMU3BlockNoEncodersClf, # video-plot-audio (MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMUNoEncodersClf, MMTransformerHierarchicalEncoderOnlyMoviescopeClf, MMTransformerHierarchicalFullMoviescopeClf, MMTransformerGMUHierarchicalNoEncodersClf, MMTransformerGMUHierarchical3BlocksNoEncodersClf)
     "mmtrvppm": MMTransformerConcat4MoviescopeClf, # video-plot-poster-metadata (MMTransformerConcat4MoviescopeClf)
     "mmtrvpapm": MMTransformerGMU5IntraMoviescopeClf, # video-plot-audio-poster-metadata (MMTransformerGMU5MoviescopeClf, MMTransformerConcat5MoviescopeClf)
     "mmbtp": MultimodalBertTransfClf,
