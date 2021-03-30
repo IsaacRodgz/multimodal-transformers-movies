@@ -307,11 +307,11 @@ class TextShiftingNLayer(nn.Module):
         x_cat = torch.cat(xs, dim=1)
         
         z = []
-        for x, gate in zip(xs, self.gates):
+        for x, gate in zip(xs, self.x_gates):
             z.append(F.sigmoid(gate(x_cat)))
         
         fused = h[0]*z[0]
-        for h_i, z_i in zip(h, z):
+        for h_i, z_i in zip(h[1:], z[1:]):
             fused += h_i*z_i
 
         return fused, torch.cat(z, dim=1)
@@ -3660,11 +3660,11 @@ class MMTransformerGMU3BlockNoEncodersClf(nn.Module):
         elif self_type in ['v', 'lv', 'av']:
             embed_dim, attn_dropout = self.d_v, self.attn_dropout_v
         elif self_type == 'l_mem':
-            embed_dim, attn_dropout = 2*self.d_l, self.attn_dropout
+            embed_dim, attn_dropout = self.d_l, self.attn_dropout
         elif self_type == 'a_mem':
-            embed_dim, attn_dropout = 2*self.d_a, self.attn_dropout
+            embed_dim, attn_dropout = self.d_a, self.attn_dropout
         elif self_type == 'v_mem':
-            embed_dim, attn_dropout = 2*self.d_v, self.attn_dropout
+            embed_dim, attn_dropout = self.d_v, self.attn_dropout
         else:
             raise ValueError("Unknown network type")
 
