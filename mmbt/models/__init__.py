@@ -40,6 +40,7 @@ from mmbt.models.mmtr import (MMTransformerClf,
                             MMTransformerGMUVPAClf,
                             MMTransformerConcatVPAClf,
                             MMTransformerGMUNoEncodersClf,
+                            MMTransformerGMU5NoEncodersClf,
                             MMTransformerGMU3BlockNoEncodersClf,
                             MMTransformerGMUHierarchicalNoEncodersClf,
                             MMTransformerGMUHierarchical3BlocksNoEncodersClf,
@@ -80,7 +81,7 @@ MODELS = {
     "mmtrvpp": MMTransformerConcatMoviescopeClf, # video-plot-poster (MMTransformerGMUMoviescopeClf)
     "mmtrvpa": MMTransformerGMU3BlockNoEncodersClf, # video-plot-audio (MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMUNoEncodersClf, MMTransformerHierarchicalEncoderOnlyMoviescopeClf, MMTransformerHierarchicalFullMoviescopeClf, MMTransformerGMUHierarchicalNoEncodersClf, MMTransformerGMUHierarchical3BlocksNoEncodersClf)
     "mmtrvppm": MMTransformerConcat4MoviescopeClf, # video-plot-poster-metadata (MMTransformerConcat4MoviescopeClf)
-    "mmtrvpapm": MMTransformerGMU5IntraMoviescopeClf, # video-plot-audio-poster-metadata (MMTransformerGMU5MoviescopeClf, MMTransformerConcat5MoviescopeClf)
+    "mmtrvpapm": MMTransformerGMU5NoEncodersClf, # video-plot-audio-poster-metadata (MMTransformerGMU5MoviescopeClf, MMTransformerConcat5MoviescopeClf, MMTransformerGMU5IntraMoviescopeClf)
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
     "vilbert": VILBertForVLTasks,
