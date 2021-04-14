@@ -39,8 +39,8 @@ class JsonlDataset(Dataset):
             self.max_seq_len -= args.num_image_embeds
         
         if self.args.model in ["mmtrvppm", "mmtrvpapm"]:
-            split = data_path.split('/')[-1].split('.')[0]
-            split = split if split != 'dev' else 'val'
+            split = data_path.split('/')[-1].split('.')[0].replace("dev", "val")
+            #split = split if split != 'dev' else 'val'
             metadata_dir = os.path.join(self.data_dir, 'Metadata_matrices', f'{split}_metadata.npy')
             self.metadata_matrix = np.load(metadata_dir)
             metadata_dir = os.path.join(self.data_dir, 'Metadata_matrices', f'{split}_ids.pickle')

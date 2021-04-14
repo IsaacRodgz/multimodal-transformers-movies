@@ -153,7 +153,10 @@ def collate_fn(batch, args):
             tgt_tensor = torch.stack([row[3] for row in batch])
     else:
         # Single Label case
-        tgt_tensor = torch.cat([row[3] for row in batch]).long()
+        if args.model in ["bert"]:
+            tgt_tensor = torch.cat([row[2] for row in batch]).long()
+        else:
+            tgt_tensor = torch.cat([row[3] for row in batch]).long()
     
     if args.model not in ["mmtra", "mmtrva", "mmtrvap"]:
         for i_batch, (input_row, length) in enumerate(zip(batch, lens)):
@@ -211,7 +214,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
     transforms = get_transforms(args)
 
     args.labels, args.label_freqs = get_labels_and_frequencies(
-        os.path.join(args.data_path, args.task, "train.jsonl")
+        os.path.join(args.data_path, args.task, "train_rating.jsonl")
     )
     if args.task == "mpaa":
         genres = [g for line in open(os.path.join(args.data_path, args.task, "train.jsonl")) for g in json.loads(line)["genre"]]
@@ -224,7 +227,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
     if args.train_type == "split":
 
         train = JsonlDataset(
-            os.path.join(args.data_path, args.task, "train.jsonl"),
+            os.path.join(args.data_path, args.task, "train_rating.jsonl"),
             tokenizer,
             transforms,
             vocab,
@@ -234,7 +237,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         args.train_data_len = len(train)
 
         dev = JsonlDataset(
-            os.path.join(args.data_path, args.task, "dev.jsonl"),
+            os.path.join(args.data_path, args.task, "dev_rating.jsonl"),
             tokenizer,
             transforms,
             vocab,
@@ -261,7 +264,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         )
 
         test_set = JsonlDataset(
-            os.path.join(args.data_path, args.task, "test.jsonl"),
+            os.path.join(args.data_path, args.task, "test_rating.jsonl"),
             tokenizer,
             transforms,
             vocab,

@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
@@ -242,6 +242,7 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
                 raw_preds.append(torch.sigmoid(out).cpu().detach().numpy())
             else:
                 pred = torch.nn.functional.softmax(out, dim=1).argmax(dim=1).cpu().detach().numpy()
+                raw_preds.append(torch.nn.functional.softmax(out, dim=1).cpu().detach().numpy())
 
             preds.append(pred)
             tgt = tgt.cpu().detach().numpy()
@@ -261,8 +262,15 @@ def model_eval(i_epoch, data, model, args, criterion, store_preds=False, output_
         metrics["auc_pr_micro"] = average_precision_score(tgts, raw_preds, average="micro")
     else:
         tgts = [l for sl in tgts for l in sl]
+        tgts_onehot = np.zeros((len(tgts), args.n_classes))
+        for i, tg in enumerate(tgts):
+            tgts_onehot[i, tg] = 1
         preds = [l for sl in preds for l in sl]
-        metrics["wighted_f1"] = f1_score(tgts, preds, average="weighted")
+        raw_preds = np.vstack(raw_preds)
+        metrics["macro_f1"] = f1_score(tgts, preds, average="macro")
+        metrics["micro_f1"] = f1_score(tgts, preds, average="micro")
+        metrics["auc_pr_macro"] = average_precision_score(tgts_onehot, raw_preds, average="macro")
+        metrics["auc_pr_micro"] = average_precision_score(tgts_onehot, raw_preds, average="micro")
     
     if store_preds:
         if output_gates:
@@ -528,7 +536,7 @@ def train(args):
         log_metrics("Val", metrics, args, logger)
 
         tuning_metric = (
-            metrics["auc_pr_micro"] if args.task_type == "multilabel" else metrics["wighted_f1"]
+            metrics["auc_pr_micro"] if args.task_type == "multilabel" else metrics["auc_pr_micro"]
         )
         scheduler.step(tuning_metric)
         is_improvement = tuning_metric > best_metric
@@ -702,7 +710,13 @@ def cli_main():
     args, remaining_args = parser.parse_known_args()
     assert remaining_args == [], remaining_args
     if args.train_type == "split":
-        train(args)
+        
+        for i in range(2, 6):
+            args.seed = i
+            args.savedir = f'/home/est_posgrado_isaac.bribiesca/mmbt_experiments/model_save_mmtr'
+            args.name = f'rating_VideoTextAudioPosterMetaGMUNoEncoderSeed{i}_mmtr_model_run'
+        
+            train(args)
     else:
         cross_validation_train(args)
 
