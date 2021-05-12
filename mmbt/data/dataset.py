@@ -202,6 +202,7 @@ class JsonlDataset(Dataset):
             example_id = self.data[index]["id"]
             metadata_idx = self.metadata_dict[example_id]
             metadata = self.metadata_matrix[metadata_idx]
+            # metadata = np.delete(metadata, 10, 0) # for rating classification ( remove rating information)
             metadata = torch.from_numpy(metadata).type(torch.FloatTensor)
                     
         if self.args.task == "mpaa":

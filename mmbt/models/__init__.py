@@ -81,7 +81,7 @@ MODELS = {
     "mmtrvpp": MMTransformerConcatMoviescopeClf, # video-plot-poster (MMTransformerGMUMoviescopeClf)
     "mmtrvpa": MMTransformerGMUNoEncodersClf, # video-plot-audio (MMTransformerGMUVPAClf, MMTransformerConcatVPAClf, MMTransformerGMUNoEncodersClf, MMTransformerHierarchicalEncoderOnlyMoviescopeClf, MMTransformerHierarchicalFullMoviescopeClf, MMTransformerGMUHierarchicalNoEncodersClf, MMTransformerGMUHierarchical3BlocksNoEncodersClf, MMTransformerGMU3BlockNoEncodersClf)
     "mmtrvppm": MMTransformerConcat4MoviescopeClf, # video-plot-poster-metadata (MMTransformerConcat4MoviescopeClf)
-    "mmtrvpapm": MMTransformerGMU5NoEncodersClf, # video-plot-audio-poster-metadata (MMTransformerGMU5MoviescopeClf, MMTransformerConcat5MoviescopeClf, MMTransformerGMU5IntraMoviescopeClf)
+    "mmtrvpapm": MMTransformerGMU5NoEncodersClf, # video-plot-audio-poster-metadata (MMTransformerGMU5MoviescopeClf, MMTransformerConcat5MoviescopeClf, MMTransformerGMU5IntraMoviescopeClf, MMTransformerGMU5NoEncodersClf)
     "mmbtp": MultimodalBertTransfClf,
     "mmdbt": MultimodalDistilBertClf,
     "vilbert": VILBertForVLTasks,

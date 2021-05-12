@@ -94,6 +94,7 @@ class BertEncoder(nn.Module):
         super(BertEncoder, self).__init__()
         self.args = args
         self.bert = huggingBertModel.from_pretrained(args.bert_model)
+        #self.bert = huggingBertModel.from_pretrained(args.bert_model, cache_dir="/home/est_posgrado_isaac.bribiesca/.cache/huggingface/transformers")
 
     def forward(self, txt, mask, segment):
         encoded_layers, out = self.bert(

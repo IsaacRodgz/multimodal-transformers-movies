@@ -214,7 +214,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
     transforms = get_transforms(args)
 
     args.labels, args.label_freqs = get_labels_and_frequencies(
-        os.path.join(args.data_path, args.task, "train_rating.jsonl")
+        os.path.join(args.data_path, args.task, "train.jsonl")
     )
     if args.task == "mpaa":
         genres = [g for line in open(os.path.join(args.data_path, args.task, "train.jsonl")) for g in json.loads(line)["genre"]]
@@ -227,7 +227,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
     if args.train_type == "split":
 
         train = JsonlDataset(
-            os.path.join(args.data_path, args.task, "train_rating.jsonl"),
+            os.path.join(args.data_path, args.task, "train.jsonl"),
             tokenizer,
             transforms,
             vocab,
@@ -237,7 +237,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         args.train_data_len = len(train)
 
         dev = JsonlDataset(
-            os.path.join(args.data_path, args.task, "dev_rating.jsonl"),
+            os.path.join(args.data_path, args.task, "dev.jsonl"),
             tokenizer,
             transforms,
             vocab,
@@ -264,7 +264,7 @@ def get_data_loaders(args, data_all=None, partition_index=None):
         )
 
         test_set = JsonlDataset(
-            os.path.join(args.data_path, args.task, "test_rating.jsonl"),
+            os.path.join(args.data_path, args.task, "test.jsonl"),
             tokenizer,
             transforms,
             vocab,
