@@ -128,19 +128,19 @@ def collate_fn(batch, args):
             img_lens = [row[2].shape[1] for row in batch]
             img_min_len = min(img_lens)
             audio = torch.stack([row[2][..., :img_min_len] for row in batch])
-        elif args.model in ["mmtra", "mmtrva", "mmtrvap", "mmtrvapt", "mmtrvpa", "mmtrvpapm"]:
+        elif args.model in ["mmtra", "mmtrva", "mmtrvap", "mmtrvapt", "mmtrvpa", "mmtrvpapm", "mmbt"]:
             img_lens = [row[4].shape[1] for row in batch]
             img_min_len = min(img_lens)
             audio = torch.stack([row[4][..., :img_min_len] for row in batch])
         if args.visual in ["poster", "both"]:
-            if args.model in ["mmtrvap", "mmtrvapt", "mmtrvpapm"]:
+            if args.model in ["mmtrvap", "mmtrvapt", "mmtrvpapm", "mmbt"]:
                 poster = torch.stack([row[5] for row in batch])
             elif args.model in ["bert"]:
                 pass
             else:
                 poster = torch.stack([row[4] for row in batch])
-        if args.model in ["mmtrvppm", "mmtrvpapm"]:
-            if args.model == "mmtrvpapm":
+        if args.model in ["mmtrvppm", "mmtrvpapm", "mmbt"]:
+            if args.model in ["mmtrvpapm", "mmbt"]:
                 metadata = torch.stack([row[6] for row in batch])
             else:
                 metadata = torch.stack([row[5] for row in batch])
@@ -178,7 +178,7 @@ def collate_fn(batch, args):
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio
         elif args.model == "mmtrvppm":
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, poster, metadata
-        elif args.model == "mmtrvpapm":
+        elif args.model in ["mmtrvpapm", "mmbt"]:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio, poster, metadata
         elif args.model in ["mmtrvap", "mmtrvapt"]:
             return text_tensor, segment_tensor, mask_tensor, img_tensor, tgt_tensor, audio, poster

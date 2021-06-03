@@ -35,7 +35,7 @@ from mmbt.models.vilbert import BertConfig
 from os.path import expanduser
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
 def get_args(parser):
     parser.add_argument("--batch_sz", type=int, default=128)
@@ -299,7 +299,7 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
                     _, _, _, img, tgt, audio = batch
             elif args.model == "mmtrvppm":
                 txt, segment, mask, img, tgt, poster, metadata = batch
-            elif args.model == "mmtrvpapm":
+            elif args.model in ["mmtrvpapm", "mmbt"]:
                 txt, segment, mask, img, tgt, audio, poster, metadata = batch
             elif args.model == "mmtrvap":
                 _, _, _, img, tgt, audio, poster = batch
@@ -316,8 +316,14 @@ def model_forward(i_epoch, model, args, criterion, batch, gmu_gate=False):
     freeze_txt = i_epoch < args.freeze_txt
     
     device = next(model.parameters()).device
-
-    if args.model == "bow":
+    
+    if args.model == "mmbt":
+        txt, img, audio = txt.cuda(), img.cuda(), audio.cuda()
+        mask, segment = mask.cuda(), segment.cuda()
+        poster = poster.cuda()
+        metadata = metadata.cuda()
+        out = model(txt, mask, segment, img, audio, poster, metadata)
+    elif args.model == "bow":
         txt = txt.cuda()
         out = model(txt)
     elif args.model in ["img"]:
@@ -710,11 +716,10 @@ def cli_main():
     args, remaining_args = parser.parse_known_args()
     assert remaining_args == [], remaining_args
     if args.train_type == "split":
-        
-        for i in range(2, 6):
+        for i in range(1, 6):
             args.seed = i
-            args.savedir = f'/home/est_posgrado_isaac.bribiesca/mmbt_experiments/model_save_mmtr'
-            args.name = f'rating_VideoTextAudioPosterMetaGMUNoEncoderSeed{i}_mmtr_model_run'
+            args.savedir = f'/home/est_posgrado_isaac.bribiesca/mmbt_experiments/model_save_mmbt'
+            args.name = f'moviescope_TextAudioSeed{i}_mmbt_model_run'
         
             train(args)
     else:
