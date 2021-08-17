@@ -13,7 +13,7 @@ The task is to predict the movie genres from movie trailers (video frames and au
 Example of comman to run the training script
 
 ```
->> python mmbt/train.py --batch_sz 4 --gradient_accumulation_steps 32 --savedir /home/est_posgrado_isaac.bribiesca/mmbt_experiments/model_save_mmtr --name moviescope_VideoTextPosterGMU_mmtr_model_run --data_path /home/est_posgrado_isaac.bribiesca --task moviescope --task_type multilabel --model mmtrvpp --num_image_embeds 3 --patience 5 --dropout 0.1 --lr 5e-05 --warmup 0.1 --max_epochs 100 --seed 1 --num_heads 6 --orig_d_v 4096 --output_gates
+>> python mmbt/train.py --batch_sz 4 --gradient_accumulation_steps 32 --savedir /home/user/mmbt_experiments/model_save_mmtr --name moviescope_VideoTextPosterGMU_mmtr_model_run --data_path /home/user --task moviescope --task_type multilabel --model mmtrvpp --num_image_embeds 3 --patience 5 --dropout 0.1 --lr 5e-05 --warmup 0.1 --max_epochs 100 --seed 1 --num_heads 6 --orig_d_v 4096 --output_gates
 ```
 
 ## Versions
