@@ -8,6 +8,11 @@ Experiments mainly based on:
 
 The task is to predict the movie genres from movie trailers (video frames and audio spectrogram), movie plot (text), poster (image) and metadata.
 
+## Publications
+
+This repo contains the code to reproduce results presented at NAACL 2021 MAI Workshop: [Multimodal Weighted Fusion of Transformers for Movie Genre Classification
+](https://aclanthology.org/2021.maiworkshop-1.1/)
+
 ## Usage
 
 Example of comman to run the training script
