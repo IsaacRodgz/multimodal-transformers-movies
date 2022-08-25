@@ -1,6 +1,6 @@
 # Multimodal Deep Learning for movie genre classification (MulT-GMU)
 
-The task is to predict the movie genres from movie trailers (video frames and audio spectrogram), movie plot (text), poster (image) and metadata.
+The task is to predict the movie genres from movie trailers (video frames and audio spectrogram), movie plot (text), poster (image) and metadata by using the [Moviescope](https://www.cs.virginia.edu/~pc9za/research/moviescope.html) dataset. A new multimodal transformer architecture is proposed (MulT-GMU), which is an extension of MulT model (with dynamic modality fusion).
 
 ## Publications
 
